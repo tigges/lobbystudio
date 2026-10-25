@@ -1,0 +1,7 @@
+**/node_modules
+**/.next
+.env
+.git
+apps/web/public/widget.js
+apps/web/public/widget.js.map
+*.tsbuildinfo
