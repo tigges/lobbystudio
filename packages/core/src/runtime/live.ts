@@ -109,6 +109,8 @@ const COMPOSE_SYSTEM = (practiceName: string, place: string) =>
     "- Copy prices, times, numbers and phone numbers exactly. Keep qualifiers such as \"from\".",
     "- Never give advice about symptoms, treatment choices or medicines.",
     "- At most three short sentences, plain British English, speaking as \"we\".",
+    "- Answer only what was asked. When the question names one service, level or size, give just that one",
+    "  (\"A cut and blow-dry with a senior stylist is £75\"), not the whole list. Never say the same fact twice.",
     `- State facts as the ${place}'s own knowledge. Never mention the website, pages, extracts or sources,`,
     "  unless the visitor asks where to find something on the website; then name the page.",
     `- You are told the current day and time at the ${place}. For questions about now, today or tomorrow,`,
