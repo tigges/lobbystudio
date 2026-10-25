@@ -14,8 +14,9 @@ RUN pnpm install --frozen-lockfile
 
 COPY . .
 
-# Bake the embedding model into the image so boots never depend on the Hugging Face hub.
-RUN cd packages/core && pnpm exec tsx -e "import('./src/retrieval/embed.ts').then((m) => m.embed(['warm-up'], 'query'))"
+# Bake the embedding model and the seed content's passage vectors into the image, so boots never
+# depend on the Hugging Face hub and a first boot on a 0.1 CPU instance doesn't embed the whole site.
+RUN cd packages/core && node --import tsx src/seed/precompute-embeddings.ts
 
 RUN pnpm widget:build && NODE_ENV=production pnpm --filter @dental-bot/web build
 

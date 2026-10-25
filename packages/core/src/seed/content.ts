@@ -20,6 +20,23 @@ export function readSeed(...parts: string[]): string {
   return readFileSync(path.join(seedDir, ...parts), "utf8").trim();
 }
 
+export function seedPages() {
+  return PAGES.map((p) => ({ slug: p.slug, title: p.title, navLabel: p.navLabel, bodyMd: readSeed("content", p.file) }));
+}
+
+export function seedQuestions(): Record<string, string[]> {
+  return JSON.parse(readSeed("content", "questions.json")) as Record<string, string[]>;
+}
+
+/** Every passage text a content version embeds: chunk texts, then their lines and questions. */
+export function passageTexts(pages: { slug: string; title: string; bodyMd: string }[], questions: Record<string, string[]> = {}) {
+  const pieces = pages.flatMap((p) => chunkPage(p));
+  return [
+    ...pieces.map(embeddingText),
+    ...pieces.flatMap((c) => [...chunkLines(c), ...(questions[chunkKey(c)] ?? [])]),
+  ];
+}
+
 /** Creates an immutable content version: pages plus their embedded chunks. */
 export async function createContentVersion(
   tenantId: string,

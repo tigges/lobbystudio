@@ -1,10 +1,10 @@
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { loadRootEnv } from "@dental-bot/db/env";
-import { closeDb, getDb, tenants, versions } from "@dental-bot/db";
+import { closeDb, deployments, getDb, tenants, versions } from "@dental-bot/db";
 import { DEFAULT_TENANT, MODEL_ROLES } from "../config.ts";
 import { sweepOutcomes } from "../services/outcomes.ts";
 import { promote } from "../versions.ts";
-import { createContentVersion, PAGES, readSeed } from "./content.ts";
+import { createContentVersion, readSeed, seedPages, seedQuestions } from "./content.ts";
 import { seedDemoConversations } from "./demo.ts";
 
 loadRootEnv();
@@ -13,10 +13,20 @@ const tenantId = DEFAULT_TENANT;
 const db = getDb();
 
 const [existing] = await db.select().from(tenants).where(eq(tenants.id, tenantId));
-if (existing && !process.argv.includes("--force")) {
+const [anyDeployment] = await db.select({ tenantId: deployments.tenantId }).from(deployments).limit(1);
+if (existing && anyDeployment && !process.argv.includes("--force")) {
   console.log(`[seed] ${tenantId} already seeded; run \`pnpm db:reset\` to start again`);
   await closeDb();
   process.exit(0);
+}
+if (existing && !anyDeployment) {
+  // A seed that died before promoting anything (e.g. OOM on a small instance). Nothing has ever been
+  // served, so it is safe to clear. TRUNCATE bypasses the row-level immutability triggers.
+  console.log("[seed] found an incomplete earlier seed (nothing promoted); clearing it and seeding again");
+  await db.execute(sql`truncate table
+    tenants, content_versions, content_pages, chunks, passages, versions, deployments, deployment_events,
+    conversations, messages, turns, pii_vault, handovers, labelled_answers, booking_requests
+    restart identity`);
 }
 
 await db.insert(tenants).values({ id: tenantId, tenantId, name: "Harbour Dental", phone: "020 7946 0321" });
@@ -25,8 +35,8 @@ const contentVersionId = await createContentVersion(
   tenantId,
   1,
   "Initial website",
-  PAGES.map((p) => ({ slug: p.slug, title: p.title, navLabel: p.navLabel, bodyMd: readSeed("content", p.file) })),
-  JSON.parse(readSeed("content", "questions.json")) as Record<string, string[]>,
+  seedPages(),
+  seedQuestions(),
 );
 
 const guidance = readSeed("behaviour", "guidance.md");

@@ -12,3 +12,4 @@ apps/web/public/widget.js.map
 next-env.d.ts
 *.tsbuildinfo
 *.tsbuildinfo
+packages/core/seed/.embedding-cache.json
