@@ -72,6 +72,25 @@ function terms(text: string): string[] {
     .filter((t) => t.length > 2 && !STOP.has(t));
 }
 
+/**
+ * A price list line, e.g. "Cut and blow-dry: graduate stylist £45; stylist £62; senior stylist £75", cut to the
+ * option the question names: "Cut and blow-dry with a senior stylist: £75". Unchanged when none is named.
+ */
+export function onlyAskedFor(line: string, query: string): string {
+  const m = /^([^:]+):\s*(.+)$/.exec(line);
+  if (!m) return line;
+  const options = m[2]!.replace(/[.]$/, "").split(/;\s*/).map((o) => /^(.+?)\s+(£\d.*)$/.exec(o));
+  if (options.length < 2 || options.some((o) => !o)) return line;
+  const q = query.toLowerCase();
+  const named = options
+    .filter((o) => new RegExp(`\\b${o![1]!.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`).test(q))
+    .sort((a, b) => b![1]!.length - a![1]!.length)[0];
+  if (!named) return line;
+  const [, option, price] = named;
+  const who = /(?:stylist|director)$/i.test(option!) ? ` with ${/^[aeiou]/i.test(option!) ? "an" : "a"} ${option}` : ` (${option})`;
+  return `${m[1]}${who}: ${price}`;
+}
+
 /** Picks the lines of the top chunks that best overlap the query and cites them. */
 export function offlineCompose(query: string, chunks: ScoredChunk[]): ComposeResult {
   const q = terms(query);
@@ -84,13 +103,23 @@ export function offlineCompose(query: string, chunks: ScoredChunk[]): ComposeRes
       if (clean.length < 8) continue;
       const lt = terms(clean);
       const overlap = q.filter((t) => lt.some((l) => l.startsWith(t.slice(0, 5)))).length;
-      scored.push({ line: clean, idx: i + 1, score: overlap - i * 0.1 });
+      const label = /^([^:]{3,60}):/.exec(clean)?.[1]?.toLowerCase();
+      const named = label && query.toLowerCase().includes(label) ? 0.5 : 0;
+      scored.push({ line: clean, idx: i + 1, score: overlap + named - i * 0.1 });
     }
   });
   scored.sort((a, b) => b.score - a.score);
-  const picked = scored.filter((s) => s.score > 0).slice(0, 2);
+  const covers = (line: string) => q.filter((t) => terms(line).some((l) => l.startsWith(t.slice(0, 5))));
+  const picked: typeof scored = [];
+  for (const s of scored) {
+    if (s.score <= 0 || picked.length === 2) break;
+    // A second line only when it answers part of the question the first didn't, so a fact isn't said twice.
+    const covered = new Set(picked.flatMap((p) => covers(p.line)));
+    if (picked.length && covers(s.line).every((t) => covered.has(t))) continue;
+    picked.push(s);
+  }
   const text = picked.length
-    ? picked.map((p) => `${p.line.replace(/[.]$/, "")} [${p.idx}].`).join(" ")
+    ? picked.map((p) => `${onlyAskedFor(p.line, query).replace(/[.]$/, "")} [${p.idx}].`).join(" ")
     : "NO_ANSWER";
   async function* stream() {
     yield text;

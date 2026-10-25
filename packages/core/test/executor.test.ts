@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { normaliseCommands, runExecutor } from "../src/runtime/executor.ts";
 import { validateSlot } from "../src/runtime/flows/booking-request.ts";
+import { offlineCompose, onlyAskedFor } from "../src/runtime/offline.ts";
 import * as T from "../src/runtime/templates.ts";
 import type { ExecutorEvent, ScoredChunk } from "../src/runtime/types.ts";
 import { bundle, ctx, fakeDeps, fillingChunk, hoursChunk, hygieneChunk } from "./fixtures.ts";
@@ -659,5 +660,39 @@ describe("next steps from labelled turns", () => {
     const r = await runExecutor(ctx({ visitorText: "no thanks", history: [{ role: "bot", text: T.ACKNOWLEDGE }] }), deps);
     expect(calls.plan).toBe(0);
     expect(r.segments[0]!.text).toBe(T.OFFER_DECLINED);
+  });
+});
+
+describe("offline compose, from the 25 Oct salon labels", () => {
+  const salonChunk = (chunkId: number, heading: string, text: string, score: number): ScoredChunk => ({
+    chunkId, page: "Services and prices", slug: "prices", heading, anchor: "a", text, score, keywordScore: 0.2,
+  });
+  const composed = async (query: string, chunks: ScoredChunk[]) => {
+    let out = "";
+    for await (const piece of offlineCompose(query, chunks).stream) out += piece;
+    return out;
+  };
+
+  it("gives only the price for the level asked about", async () => {
+    const cut = salonChunk(38, "Cut and style", [
+      "Cut and blow-dry: graduate stylist £45; stylist £62; senior stylist £75; creative director £95",
+      "Blow-dry: graduate stylist £32; stylist £38; senior stylist £45; creative director £55",
+    ].join("\n"), 1.05);
+    expect(await composed("How much is a cut and blow-dry with a senior stylist", [cut])).toBe("Cut and blow-dry with a senior stylist: £75 [1].");
+    expect(await composed("How much is a blow-dry with a stylist", [cut])).toBe("Blow-dry with a stylist: £38 [1].");
+  });
+
+  it("keeps the whole list when no level is named", () => {
+    const line = "Cut and blow-dry: graduate stylist £45; stylist £62; senior stylist £75; creative director £95";
+    expect(onlyAskedFor(line, "how much is a cut and blow-dry")).toBe(line);
+    expect(onlyAskedFor("Balayage: from £160 (price)", "balayage with a senior stylist")).toBe("Balayage: from £160 (price)");
+  });
+
+  it("doesn't add a second line that says nothing new", async () => {
+    const chunks = [
+      salonChunk(40, "Highlights and balayage", "Balayage: from £160 (price)\n\nBalayage and full head foils usually take three hours, including a blow-dry.", 1.0),
+      salonChunk(50, "How long will my appointment take?", "A cut and blow-dry takes about an hour. A full head colour takes about two hours, and balayage or full head foils about three hours.", 0.996),
+    ];
+    expect(await composed("How long does balayage take", chunks)).toBe("Balayage and full head foils usually take three hours, including a blow-dry [1].");
   });
 });
