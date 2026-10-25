@@ -4,13 +4,13 @@ export type Practice = { name: string; phone: string };
 
 export function greeting(p: Practice): string {
   return (
-    `Hi, I can answer questions using the ${p.name} website: opening hours, prices, NHS and private care, ` +
+    `Hi, I'm the ${p.name} assistant. I can help with opening hours, prices, NHS and private care, ` +
     `emergencies and booking. If you're in pain or worried about a symptom, I'll pass you straight to the team.`
   );
 }
 
 export function dontKnow(p: Practice): string {
-  return `I'm not sure about that from our website, and I'd rather not guess. The team can help on ${p.phone}.`;
+  return `I'm afraid I can't answer that one, and I'd rather not guess. The team can help on ${p.phone}.`;
 }
 
 export function technicalProblem(p: Practice): string {

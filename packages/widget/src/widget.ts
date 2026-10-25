@@ -110,7 +110,7 @@ class Widget {
     const avatar = el("div", { class: "avatar" }, "");
     const title = el("div", { class: "title" });
     this.titleEl = el("strong", {}, "Chat");
-    title.append(this.titleEl, el("span", {}, "Answers from our website"));
+    title.append(this.titleEl, el("span", {}, "Practice assistant"));
     this.versionEl = el("span", { class: "version", title: "Serving version" }, "v–");
     const close = el("button", { class: "icon-btn", "aria-label": "Close chat" }, "×");
     close.addEventListener("click", () => this.close());
