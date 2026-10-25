@@ -81,11 +81,12 @@ describe("answer_from_knowledge", () => {
   it("streams a grounded answer with its source", async () => {
     const { deps } = fakeDeps({
       commands: [{ cmd: "answer_from_knowledge", query: "hygienist price" }],
-      chunks: [hygieneChunk],
+      // Under the confident margin, so the planner is asked.
+      chunks: [{ ...hygieneChunk, score: 0.75 }],
       composed: "A 30-minute hygienist appointment is £75 [1].",
     });
     const events: ExecutorEvent[] = [];
-    const r = await runExecutor(ctx({ visitorText: "how much is the hygienist", bookingOffered: true }), deps, (e) => events.push(e));
+    const r = await runExecutor(ctx({ visitorText: "how much is the hygienist", bookingOffered: true, bookingClosed: true }), deps, (e) => events.push(e));
     expect(r.act).toBe("answered");
     expect(r.segments).toHaveLength(1);
     expect(r.segments[0]).toMatchObject({ kind: "answer", text: "A 30-minute hygienist appointment is £75." });
@@ -117,7 +118,7 @@ describe("answer_from_knowledge", () => {
       chunks: [hygieneChunk],
       composed: "A hygienist appointment is £65 [1]. It lasts 30 minutes [1].",
     });
-    const r = await runExecutor(ctx({ visitorText: "hygienist?" }), deps);
+    const r = await runExecutor(ctx({ visitorText: "hygienist?", bookingClosed: true }), deps);
     expect(r.segments.map((s) => s.text)).toEqual(["It lasts 30 minutes."]);
     expect(r.trace.guardrails).toContainEqual(expect.objectContaining({ rule: "ungrounded_number", result: "dropped" }));
   });
@@ -151,7 +152,7 @@ describe("answer_from_knowledge", () => {
       chunks: [hygieneChunk],
       composed: "Brushing twice a day helps. You should take ibuprofen first [1]. Hygienist visits are 30 minutes [1].",
     });
-    const r = await runExecutor(ctx({ visitorText: "hygienist" }), deps);
+    const r = await runExecutor(ctx({ visitorText: "hygienist", bookingClosed: true }), deps);
     expect(r.segments.map((s) => s.text)).toEqual(["Hygienist visits are 30 minutes."]);
     const rules = r.trace.guardrails.map((g) => g.rule);
     expect(rules).toContain("uncited_sentence");
@@ -178,7 +179,7 @@ describe("answer_from_knowledge", () => {
       chunks: { "hygienist price": [hygieneChunk], "saturday hours": [hoursChunk] },
       composed: (q) => (q.includes("hygienist") ? "It is £75 [1]." : "On Saturday we open 9am to 1pm [1]."),
     });
-    const r = await runExecutor(ctx({ visitorText: "price and saturday?", bookingOffered: true }), deps);
+    const r = await runExecutor(ctx({ visitorText: "price and saturday?", bookingOffered: true, bookingClosed: true }), deps);
     expect(r.answered).toBe(2);
     expect(r.segments.map((s) => s.sources[0]!.slug)).toEqual(["treatments", "contact"]);
   });
