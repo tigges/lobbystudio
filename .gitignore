@@ -11,3 +11,4 @@ apps/web/public/widget.js
 apps/web/public/widget.js.map
 next-env.d.ts
 *.tsbuildinfo
+*.tsbuildinfo

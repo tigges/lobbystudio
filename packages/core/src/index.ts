@@ -8,3 +8,4 @@ export * from "./services/outcomes.ts";
 export { detectPii, tokenise, detokenise } from "./pii/detect.ts";
 export { greeting } from "./runtime/templates.ts";
 export type { Bundle, Segment, TurnResult, ExecutorEvent } from "./runtime/types.ts";
+export { slugify } from "./retrieval/chunk.ts";
