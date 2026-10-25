@@ -36,6 +36,17 @@ Other commands:
 | `pnpm db:reset` | Drop everything, then re-migrate and re-seed |
 | `pnpm --filter @dental-bot/core exec tsx src/seed/calibrate.ts` | Retrieval-threshold recall and leak over probe questions |
 
+## Deploy (Render)
+
+`render.yaml` is a Render Blueprint for two services, built from the root `Dockerfile` in Frankfurt:
+
+- `lobbystudio`: the web service, serving the site, widget API and console
+- `lobbystudio-worker`: the outcome sweep
+
+Both read `DATABASE_URL` from the existing Render Postgres instance named `lobbystudio`. `PII_KEY` is generated once and shared through an environment group, and Render prompts for `ANTHROPIC_API_KEY` and `CONSOLE_PASSWORD` when the Blueprint is created.
+
+Every boot runs the migrations and the idempotent seed (`scripts/start-web.sh`). The embedding model is baked into the image at build time.
+
 ## Layout
 
 ```
