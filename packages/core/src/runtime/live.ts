@@ -137,7 +137,8 @@ export function composeUserMessage(
   const extracts = chunks.map((c, i) => `[${i + 1}] ${c.page} › ${c.heading}\n${c.text}`).join("\n\n");
   const recent = context?.recent.length ? `Conversation so far:\n${transcript(context.recent, place)}\n\n` : "";
   const known = context?.known ? `What the visitor has told us: ${context.known}.\n` : "";
-  return `${recent}${known}Question: ${query}\nNow at the ${place}: ${now}\n\nExtracts:\n${extracts}`;
+  const related = context?.related?.length ? ` (on our website: ${context.related.join(", ")})` : "";
+  return `${recent}${known}Question: ${query}${related}\nNow at the ${place}: ${now}\n\nExtracts:\n${extracts}`;
 }
 
 export function liveCompose(query: string, chunks: ScoredChunk[], bundle: Bundle, context?: ComposeContext): ComposeResult {

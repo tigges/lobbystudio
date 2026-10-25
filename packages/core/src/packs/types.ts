@@ -2,6 +2,7 @@ import type { HandoverReason } from "../runtime/commands.ts";
 import type { BookingDef } from "../runtime/flows/booking.ts";
 import type { PrecheckRule } from "../runtime/guardrails.ts";
 import type { Practice } from "../runtime/templates.ts";
+import type { Synonym } from "./synonyms.ts";
 
 export type Vertical = "dental" | "salon";
 
@@ -60,6 +61,8 @@ export type Pack = {
    * straight to the team with the visitor's contact details rather than ending at "I can't answer that".
    */
   enquiry?: { pattern: RegExp; message(b: Practice): string };
+  /** Other words for what the website covers, so retrieval finds the section. */
+  synonyms: Synonym[];
   /** The page and section anchors the fixed handover messages cite. */
   handoverSources: { slug: string; urgent: RegExp; clinical: RegExp };
 };

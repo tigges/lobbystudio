@@ -37,6 +37,8 @@ const CHECK_NAMES: Record<string, string> = {
   clinical_output: "Clinical advice removed",
   clinical_precheck: "Clinical words: handed straight over",
   topic_menu: "Offered topics to choose from",
+  near_miss: "Asked “Do you mean …?” on a near match",
+  synonym: "Searched again with the website's word",
   no_double_clarify: "Avoided asking “which one” twice",
   clarify_options: "Unsafe choice options removed",
   slot_validation: "Booking answer not accepted",

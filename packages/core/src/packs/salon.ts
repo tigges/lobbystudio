@@ -2,6 +2,7 @@ import { bookingWhat, COLOUR_SERVICE, PATCH_NOTE, SALON_BOOKING, serviceWithStyl
 import { CLINICAL_OUTPUT, type PrecheckRule } from "../runtime/guardrails.ts";
 import type { Practice } from "../runtime/templates.ts";
 import type { Pack } from "./types.ts";
+import { COMMON_SYNONYMS } from "./synonyms.ts";
 
 /** Offers that carry on from the answer: the topic decides the wording, the visitor's own details fill it in. */
 function salonFollowUp({ headings, slots }: { headings: string[]; slots: Record<string, string> }): string | null {
@@ -117,5 +118,11 @@ export const SALON_PACK: Pack = {
     message: (b) =>
       `That's one for the team, so I've passed your question on. They'll reply here during opening hours, or you can call us on ${b.phone}.`,
   },
+  synonyms: [
+    ...COMMON_SYNONYMS,
+    { words: /\b(?:fringe|bangs|trim|haircut|tidy up)\b/i, search: "Cut and style" },
+    { words: /\b(?:roots?|grey|gray|tint)\b/i, search: "Colour" },
+    { words: /\b(?:keratin|frizz\w*|straighten\w*)\b/i, search: "Treatments" },
+  ],
   handoverSources: { slug: "patch-tests", urgent: /^(if-you-have-a-reaction|call-999)/, clinical: /^what-we-can/ },
 };
