@@ -1,0 +1,120 @@
+import type {
+  BundleConfig,
+  FlowState,
+  GuardrailHit,
+  ModelCall,
+  Procedure,
+  RetrievedChunk,
+  Source,
+  TraceCommand,
+} from "@dental-bot/db/schema";
+import type { HandoverReason } from "./commands.ts";
+import type { Practice } from "./templates.ts";
+
+export type ScoredChunk = {
+  chunkId: number;
+  page: string;
+  slug: string;
+  heading: string;
+  anchor: string;
+  text: string;
+  score: number;
+  keywordScore: number;
+};
+
+export type Bundle = {
+  tenantId: string;
+  versionId: number;
+  versionNumber: number;
+  contentVersionId: number;
+  contentVersionNumber: number;
+  guidance: string;
+  procedures: Procedure[];
+  flowCatalogue: string[];
+  config: BundleConfig;
+  practice: Practice;
+  /** Pages the fixed handover templates are written from, shown as their sources. */
+  handoverSources: { urgent: Source[]; clinical: Source[] };
+};
+
+export type HistoryItem = { role: "visitor" | "bot" | "staff" | "system"; text: string };
+
+export type TurnContext = {
+  visitorText: string | null;
+  action: "book" | "handover" | null;
+  flow: FlowState | null;
+  status: "active" | "handed_over" | "closed";
+  history: HistoryItem[];
+  bundle: Bundle;
+};
+
+export type PlannerResult = { commands: unknown; call: ModelCall | null };
+
+export type ComposeResult = { stream: AsyncIterable<string>; done: Promise<ModelCall | null> };
+
+export type ExecutorDeps = {
+  plan(ctx: TurnContext): Promise<PlannerResult>;
+  retrieve(query: string, bundle: Bundle): Promise<ScoredChunk[]>;
+  compose(query: string, chunks: ScoredChunk[], bundle: Bundle): ComposeResult;
+  now?: () => number;
+};
+
+export type SegmentKind =
+  | "answer"
+  | "fallback"
+  | "flow"
+  | "clarify"
+  | "handover"
+  | "cannot_handle"
+  | "acknowledge"
+  | "error";
+
+export type Segment = {
+  id: string;
+  kind: SegmentKind;
+  text: string;
+  sources: Source[];
+  options: string[];
+};
+
+export type ExecutorEvent =
+  | { type: "segment_start"; id: string; kind: SegmentKind }
+  | { type: "delta"; id: string; text: string }
+  | { type: "segment_end"; id: string; sources: Source[]; options: string[] };
+
+export type BotAct =
+  | "answered"
+  | "fallback"
+  | "blocked"
+  | "clarify"
+  | "flow"
+  | "flow_completed"
+  | "handover"
+  | "out_of_scope"
+  | "cannot_handle"
+  | "acknowledged"
+  | "waiting"
+  | "error";
+
+export type TurnResult = {
+  segments: Segment[];
+  flow: FlowState | null;
+  status: "active" | "handed_over";
+  handover: { reason: HandoverReason; trigger: "precheck" | "planner" | "visitor_button" } | null;
+  booking: Record<string, string> | null;
+  act: BotAct;
+  answered: number;
+  fallbacks: number;
+  topic: string | null;
+  affirmed: boolean;
+  trace: {
+    commands: TraceCommand[];
+    rejected: unknown[];
+    retrieved: RetrievedChunk[];
+    guardrails: GuardrailHit[];
+    modelCalls: ModelCall[];
+    firstTokenMs: number | null;
+    plannerSkipped: string | null;
+    error: string | null;
+  };
+};

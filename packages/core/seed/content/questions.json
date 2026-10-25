@@ -1,0 +1,291 @@
+{
+  "contact#top": [
+    "What are your opening hours?",
+    "Is Harbour Dental open on Saturdays?",
+    "How can I contact the practice?",
+    "Where are you based in London?",
+    "Do you take NHS patients?",
+    "Are you open in the evenings?",
+    "How long have you been looking after families in Rotherhithe?",
+    "Is the practice near the river?"
+  ],
+  "contact#opening-hours": [
+    "What time do you open on Mondays?",
+    "Are you open on Sundays?",
+    "What are your opening hours on Saturday?",
+    "Do you stay open late on Tuesdays?",
+    "Are you open on bank holidays?",
+    "When can I ring reception on a Saturday?",
+    "What time do you close on Fridays?",
+    "Can I phone you before 8am on a weekday?"
+  ],
+  "contact#how-to-contact-us": [
+    "What's your phone number?",
+    "How can I get in touch with the dental practice?",
+    "Where are you located?",
+    "What's your email address?",
+    "How quickly do you reply to emails?",
+    "Can I email you if I have a dental emergency?",
+    "Is the practice in Rotherhithe?"
+  ],
+  "contact#getting-here": [
+    "How do I get to the dental practice from Canada Water station?",
+    "Is there parking at the dentist?",
+    "Which buses stop near the practice?",
+    "Is the surgery wheelchair accessible?",
+    "Is there step-free access and a toilet I can use?",
+    "How far is the practice from Canada Water tube?",
+    "Can I drive to the dentist and park nearby?",
+    "Which bus goes to the dental practice on Quayside Row?"
+  ],
+  "contact#our-team": [
+    "Who works at the practice?",
+    "Who's the principal dentist here?",
+    "Who do I speak to about running the practice or admin stuff?",
+    "Are the dentists registered with the GDC?",
+    "Is there a hygienist I can see?",
+    "Who are the dentists on the team?",
+    "Who's Jess Morgan?",
+    "Are your dentists properly qualified and registered?"
+  ],
+  "treatments#top": [
+    "Are your prices private or NHS?",
+    "Do you have a price list for treatments?",
+    "Why do some prices say \"from\"?",
+    "Will I get a written treatment plan before I start?",
+    "Where can I find the NHS charges?",
+    "How much does a treatment cost with you?",
+    "Do the \"from\" prices change depending on my treatment?",
+    "Is the price I see the final price I'll pay?"
+  ],
+  "treatments#check-ups-and-hygiene": [
+    "How much is a new patient check-up at the dentist?",
+    "Does the first visit include x-rays?",
+    "What's the price for a routine check-up if I already go to the practice?",
+    "How much does a hygienist appointment cost?",
+    "Is there a discount if I book a check-up and a hygienist visit together?",
+    "How much is a check-up for my kid?",
+    "Are these prices for private patients or NHS?",
+    "How long is a new patient appointment?"
+  ],
+  "treatments#fillings-and-root-canal-treatment": [
+    "How much is a white filling?",
+    "How much does a root canal cost on a front tooth?",
+    "What's the price for a root canal on a back tooth?",
+    "Do you do white fillings and how much do they cost privately?",
+    "How much is root canal treatment at your practice?",
+    "Is a root canal more expensive for a back tooth than a front one?",
+    "What are your prices for fillings and root canals?",
+    "Roughly what would a root canal set me back if it's a molar?"
+  ],
+  "treatments#crowns-bridges-and-dentures": [
+    "How much is a porcelain crown at your practice?",
+    "Roughly what does a bridge cost per tooth?",
+    "What's the price for a full acrylic denture, upper or lower?",
+    "Do you do dentures and how much do they cost?",
+    "how much for a crown privately",
+    "Is a bridge more expensive than a crown?",
+    "What are your private prices for crowns, bridges and dentures?",
+    "Cost of a full set of acrylic dentures??"
+  ],
+  "treatments#extractions": [
+    "How much does a simple tooth extraction cost?",
+    "What's the price for a surgical extraction at the dentist?",
+    "Is a simple extraction £150 if I go privately?",
+    "How much is it to get a tooth pulled?",
+    "Do surgical extractions start from £250?",
+    "what do extractions cost privately",
+    "Roughly how much would I pay to have a wisdom tooth taken out?"
+  ],
+  "treatments#cosmetic-treatments": [
+    "How much does teeth whitening cost with a home kit?",
+    "Do I need a check-up before I can get teeth whitening?",
+    "Is teeth whitening available on the NHS?",
+    "How much is composite bonding per tooth?",
+    "What's the price for clear aligners?",
+    "Does the clear aligner price include the consultation?",
+    "Can I get teeth whitening done on the NHS or is it private only?"
+  ],
+  "treatments#implants": [
+    "How much does a dental implant consultation cost?",
+    "What's the price of a single tooth implant with a crown?",
+    "Do you do implants and how much are they?",
+    "Is the implant consultation £95?",
+    "How much is a consult for implants at the practice?",
+    "Roughly what would one implant tooth cost me privately?",
+    "What does a single implant with crown start at?",
+    "Is the single tooth implant price from £2,900 a private price?"
+  ],
+  "treatments#nhs-charges": [
+    "How much is NHS dental treatment in England?",
+    "What does the Band 1 NHS dental charge cover?",
+    "How much do I pay for a filling on the NHS?",
+    "Is a crown or denture on the NHS more expensive?",
+    "How much is a check-up on the NHS?",
+    "Do kids pay for NHS dental treatment?",
+    "Is NHS dental treatment free if I'm pregnant?",
+    "What's the cost of a root canal on the NHS?"
+  ],
+  "treatments#paying-for-treatment": [
+    "Can I pay for dental treatment with cash?",
+    "Do you accept card or contactless payments?",
+    "Can I spread the cost of private treatment over a year?",
+    "Is there 0% interest if I pay in instalments for dental work?",
+    "Do I need to pay upfront for treatments over £1,000?",
+    "Is there a payment plan for expensive private dental treatment?"
+  ],
+  "nhs-private-faq#are-you-taking-new-nhs-patients": [
+    "Are you taking on new NHS patients?",
+    "Can my child join the NHS list with you?",
+    "Is there a waiting list for adult NHS dental appointments?",
+    "How long is the NHS waiting list to join?",
+    "How do I get on your NHS waiting list?",
+    "Can I sign up as a private patient straight away?",
+    "Do you take adults on the NHS right now?",
+    "Can I join as a private patient without waiting?"
+  ],
+  "nhs-private-faq#what-is-the-difference-between-nhs-and-private-treatment": [
+    "What's the difference between NHS and private dental treatment?",
+    "Is private dental treatment just for cosmetic stuff?",
+    "Can I get white fillings on my back teeth on the NHS?",
+    "Do private dentists offer longer appointments than NHS ones?",
+    "Can I get evening or Saturday dental appointments privately?",
+    "Does NHS dental treatment cover everything I need to keep my teeth healthy?",
+    "What do I get with private dentistry that I wouldn't get on the NHS?"
+  ],
+  "nhs-private-faq#can-i-have-a-mix-of-nhs-and-private-treatment": [
+    "Can I have some NHS and some private treatment at the same time?",
+    "Is it possible to mix NHS and private dental work?",
+    "Can I do part of my treatment on the NHS and part privately?",
+    "Will the dentist tell me what's NHS and what's private before I agree?",
+    "Can I get a bit of NHS treatment and pay privately for the rest?"
+  ],
+  "nhs-private-faq#do-i-need-to-be-registered-with-you": [
+    "Do I need to register with the practice before I can get NHS treatment?",
+    "Do I have to sign up with you to see an NHS dentist?",
+    "Is there a form I need to fill in to be registered for NHS dentistry here?",
+    "How do I become a patient at your practice?",
+    "If I haven't been in for a couple of years, will I be treated as a new patient?",
+    "Am I automatically a patient after one check-up with you?",
+    "need to register for NHS dental stuff or nah?"
+  ],
+  "nhs-private-faq#do-you-see-children": [
+    "Do you see children at the practice?",
+    "Can my kid come in for a check-up here?",
+    "Is dental treatment free for under 18s on the NHS?",
+    "When should my baby first see a dentist?",
+    "Do you take young children as patients?",
+    "My son is 5, can he be seen by you?",
+    "Is there a charge for kids to see the dentist here?",
+    "Should I bring my toddler in by their first birthday?"
+  ],
+  "nhs-private-faq#do-you-offer-a-dental-plan": [
+    "Do you have a dental plan?",
+    "How much is the Harbour Care plan?",
+    "What's included in the Harbour Care plan?",
+    "Is there a membership plan for adults at the practice?",
+    "Do you do any monthly dental plans for NHS patients?",
+    "Does the plan give you a discount on other private treatment?",
+    "How many check-ups do you get with the dental plan?"
+  ],
+  "nhs-private-faq#how-do-i-cancel-or-change-an-appointment": [
+    "How much notice do I need to give to cancel a dental appointment?",
+    "Is there a fee if I cancel my private appointment late?",
+    "How much is the charge for cancelling a private dental appointment at short notice?",
+    "Can I cancel or change my appointment online?",
+    "What happens if I miss two NHS appointments in a row?",
+    "Will I still get NHS dental appointments if I miss two in a row?",
+    "How do I cancel my dental appointment?",
+    "Do I have to phone to cancel my appointment?"
+  ],
+  "nhs-private-faq#do-you-offer-sedation": [
+    "Do you do sedation at the practice?",
+    "Is sedation available for nervous patients?",
+    "Can I get sedation for my dental work here?",
+    "I'm really scared of the dentist, do you offer anything to help me relax?",
+    "If I need sedation, can you refer me somewhere?",
+    "Do you offer sedation dentistry or do I have to go elsewhere?"
+  ],
+  "emergencies#call-999-or-go-to-a-and-e": [
+    "My face is swollen and it's making it hard to breathe, what should I do?",
+    "Should I go to A&E if my mouth keeps bleeding after 15 minutes of pressure?",
+    "Is facial swelling that's affecting my swallowing an emergency?",
+    "My gum bleeding won't stop, do I need to call 999?",
+    "I've smacked my face and chipped my front tooth badly, should I go to A&E?",
+    "Do I need to get seen urgently if I banged my head and my teeth are damaged?",
+    "If my eye is swollen because of a mouth infection, is that a 999 job?",
+    "What counts as a dental emergency that means I should go to A&E?"
+  ],
+  "emergencies#urgent-dental-problems-during-opening-hours": [
+    "Do you have emergency dental appointments during the day?",
+    "How do I book an urgent dental appointment if I'm in pain?",
+    "Can I email or use the chat to book an emergency dental slot?",
+    "What do you do for a broken tooth or a lost filling?",
+    "How much is a private emergency dental appointment?",
+    "What's the NHS urgent care charge at the dentist?",
+    "Do you keep emergency slots open on Saturday mornings?",
+    "My crown has come off, can I get seen today?"
+  ],
+  "emergencies#when-we-are-closed": [
+    "What should I do if I have a dental emergency when the surgery is closed?",
+    "Who do I call for a dentist out of hours?",
+    "Can NHS 111 help me find an emergency dentist at night?",
+    "Where can I book an urgent dental appointment when the practice is shut?",
+    "my tooth is killing me and the surgery's shut, what do i do",
+    "Is there a website I can use to get urgent dental help when you're closed?"
+  ],
+  "emergencies#knocked-out-adult-tooth": [
+    "My adult tooth got knocked out, what should I do?",
+    "How quickly do I need to get treatment for a knocked-out tooth?",
+    "Someone knocked my tooth out, who do I call?",
+    "Is there a best time window to save a knocked-out adult tooth?"
+  ],
+  "emergencies#what-we-cannot-do-in-the-chat": [
+    "Can the chat tell me what's wrong with my tooth?",
+    "Will the chatbot give me medicine for my toothache?",
+    "Can you check my symptoms for me?",
+    "If I have pain or swelling, what happens if I tell the chat?",
+    "Does the chat assistant diagnose dental problems?",
+    "My gum is bleeding, can you help me figure it out?",
+    "What happens if I mention an injury in the chat?",
+    "Can I get dental advice from the chatbot?"
+  ],
+  "book#how-to-book": [
+    "How do I book an appointment?",
+    "Can I book a check-up through the website chat?",
+    "What number do I call to make a booking?",
+    "Can I book by email?",
+    "How quickly will the practice call me back after I request a booking?",
+    "Do I have to give my name and phone number when I book?",
+    "Is it possible to book a dental check-up online?",
+    "Will someone confirm my appointment after I ask for one?"
+  ],
+  "book#your-first-visit": [
+    "What time should I get to my first dental appointment?",
+    "Do I need to bring anything to my first visit at the dentist?",
+    "How long is a new patient check-up?",
+    "Will I have x-rays at my first dental visit?",
+    "Do I need to bring proof if I get free NHS dental treatment?",
+    "Should I bring a list of my medication to the dentist?",
+    "How long does the first appointment take at the dentist?",
+    "Is the first visit going to include x-rays and how many?"
+  ],
+  "book#evening-and-saturday-appointments": [
+    "Do you do evening appointments?",
+    "Can I book a Saturday appointment?",
+    "What time do the evening appointments finish?",
+    "Are Saturday and evening slots open to NHS patients?",
+    "Which days are late appointments available?",
+    "Can I get a dentist appointment on a Saturday morning?",
+    "Do I need to be private or on a Harbour Care plan for evening or Saturday visits?",
+    "What hours do you open on Saturdays?"
+  ],
+  "book#appointment-reminders": [
+    "How do I cancel my dental appointment?",
+    "Do you send appointment reminders by text?",
+    "When will I get a reminder before my dentist visit?",
+    "Can I cancel by text if I can't make it?",
+    "Will the practice text me before my appointment?",
+    "How far ahead do you remind people about appointments?"
+  ]
+}

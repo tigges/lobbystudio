@@ -1,0 +1,27 @@
+{
+  "name": "dental-bot",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.33.4",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "node scripts/db-up.mjs && pnpm db:setup && pnpm widget:build && concurrently -k -n web,worker,widget -c blue,magenta,green \"pnpm --filter @dental-bot/web dev\" \"pnpm --filter @dental-bot/worker dev\" \"pnpm --filter @dental-bot/widget watch\"",
+    "db:up": "node scripts/db-up.mjs",
+    "db:setup": "pnpm --filter @dental-bot/db migrate && pnpm --filter @dental-bot/core seed",
+    "db:reset": "pnpm --filter @dental-bot/db reset && pnpm db:setup",
+    "db:generate": "pnpm --filter @dental-bot/db generate",
+    "widget:build": "pnpm --filter @dental-bot/widget build",
+    "build": "pnpm widget:build && pnpm --filter @dental-bot/web build",
+    "test": "vitest run",
+    "typecheck": "pnpm -r typecheck"
+  },
+  "devDependencies": {
+    "@types/node": "22.20.5",
+    "concurrently": "10.0.6",
+    "tsx": "4.23.15",
+    "typescript": "5.9.3",
+    "vitest": "5.0.5"
+  }
+}
