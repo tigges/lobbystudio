@@ -197,6 +197,8 @@ export async function runTurn(opts: {
 
   const values = await vaultValues(opts.tenantId, conv.id);
   const started = Date.now();
+  // A backdated turn (the demo seed) sees its own date, so times offered are relative to it.
+  const clockOffset = now.getTime() - started;
   const result = await runExecutor(
     {
       visitorText: tokenised,
@@ -210,7 +212,7 @@ export async function runTurn(opts: {
       bookingOffered: offered || Boolean(conv.handedOverAt),
       teamReplied: Boolean(conv.lastHumanAt && conv.handedOverAt && conv.lastHumanAt >= conv.handedOverAt),
     },
-    depsFor(mode, bookingFor(opts.tenantId, bundle, values)),
+    { ...depsFor(mode, bookingFor(opts.tenantId, bundle, values)), now: () => Date.now() + clockOffset },
     (e) => emit(e.type === "delta" ? { ...e, text: detokenise(e.text, values) } : e),
   );
   const latencyMs = Date.now() - started;

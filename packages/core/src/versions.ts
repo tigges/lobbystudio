@@ -6,6 +6,7 @@ import {
   deploymentEvents,
   deployments,
   getDb,
+  type Db,
   tenants,
   versions,
   type Source,
@@ -72,8 +73,13 @@ export async function promotedVersionId(tenantId: string): Promise<number> {
   return d.promotedVersionId;
 }
 
-export async function promote(tenantId: string, versionId: number, actor: string, action: "promote" | "rollback" = "promote") {
-  const db = getDb();
+export async function promote(
+  tenantId: string,
+  versionId: number,
+  actor: string,
+  action: "promote" | "rollback" = "promote",
+  db: Pick<Db, "transaction"> = getDb(),
+) {
   await db.transaction(async (tx) => {
     const [v] = await tx
       .select({ id: versions.id })

@@ -1,7 +1,8 @@
 import { eq, sql } from "drizzle-orm";
 import { loadRootEnv } from "@dental-bot/db/env";
 import { closeDb, deployments, getDb, tenants, versions } from "@dental-bot/db";
-import { DEFAULT_TENANT, MODEL_ROLES } from "../config.ts";
+import { BUSINESSES, type Business } from "../businesses.ts";
+import { MODEL_ROLES } from "../config.ts";
 import { sweepOutcomes } from "../services/outcomes.ts";
 import { promote } from "../versions.ts";
 import { createContentVersion, readSeed, seedPages, seedQuestions } from "./content.ts";
@@ -9,19 +10,13 @@ import { seedDemoConversations } from "./demo.ts";
 
 loadRootEnv();
 
-const tenantId = DEFAULT_TENANT;
 const db = getDb();
 
-const [existing] = await db.select().from(tenants).where(eq(tenants.id, tenantId));
+const [anyTenant] = await db.select({ id: tenants.id }).from(tenants).limit(1);
 const [anyDeployment] = await db.select({ tenantId: deployments.tenantId }).from(deployments).limit(1);
-if (existing && anyDeployment && !process.argv.includes("--force")) {
-  console.log(`[seed] ${tenantId} already seeded; run \`pnpm db:reset\` to start again`);
-  await closeDb();
-  process.exit(0);
-}
-if (existing && !anyDeployment) {
-  // A seed that died before promoting anything (e.g. OOM on a small instance). Nothing has ever been
-  // served, so it is safe to clear. TRUNCATE bypasses the row-level immutability triggers.
+if (anyTenant && !anyDeployment) {
+  // A seed from before per-business transactions that died before promoting anything (e.g. OOM on a small
+  // instance). Nothing has ever been served, so it is safe to clear. TRUNCATE bypasses the immutability triggers.
   console.log("[seed] found an incomplete earlier seed (nothing promoted); clearing it and seeding again");
   await db.execute(sql`truncate table
     tenants, content_versions, content_pages, chunks, passages, versions, deployments, deployment_events,
@@ -29,42 +24,66 @@ if (existing && !anyDeployment) {
     restart identity`);
 }
 
-await db.insert(tenants).values({ id: tenantId, tenantId, name: "Harbour Dental", phone: "020 7946 0321" });
+const seeded: string[] = [];
+for (const business of BUSINESSES) {
+  const [existing] = await db.select({ id: tenants.id }).from(tenants).where(eq(tenants.id, business.id));
+  if (existing) {
+    console.log(`[seed] ${business.id} already seeded; run \`pnpm db:reset\` to start again`);
+    continue;
+  }
+  await seedBusiness(business);
+  seeded.push(business.id);
+}
 
-const contentVersionId = await createContentVersion(
-  tenantId,
-  1,
-  "Initial website",
-  seedPages(),
-  seedQuestions(),
-);
-
-const guidance = readSeed("behaviour", "guidance.md");
-if (guidance.length > 1500) throw new Error(`guidance is ${guidance.length} characters; the cap is 1,500`);
-
-const [v1] = await db
-  .insert(versions)
-  .values({
-    tenantId,
-    number: 1,
-    contentVersionId,
-    guidance,
-    procedures: [
-      { key: "booking_request", title: "Booking request", steps: readSeed("behaviour", "procedures", "booking-request.md") },
-      { key: "handover", title: "Handover", steps: readSeed("behaviour", "procedures", "handover.md") },
-    ],
-    flowCatalogue: ["booking_request", "handover"],
-    config: { chatModel: MODEL_ROLES.chat, retrievalThreshold: 0.68, maxChunks: 4 },
-    note: "Initial behaviour",
-    createdBy: "seed",
-  })
-  .returning();
-await promote(tenantId, v1!.id, "seed");
-console.log(`[seed] tenant, content v1 and behaviour v1 created; v1 promoted`);
-
-if (!process.argv.includes("--no-demo")) {
-  const n = await seedDemoConversations(tenantId);
+if (seeded.length && !process.argv.includes("--no-demo")) {
+  for (const id of seeded) {
+    const n = await seedDemoConversations(id);
+    console.log(`[seed] ${id}: ${n} demo conversations`);
+  }
   const { assigned } = await sweepOutcomes();
-  console.log(`[seed] ${n} demo conversations; ${assigned} outcomes assigned by the 24h sweep`);
+  console.log(`[seed] ${assigned} outcomes assigned by the 24h sweep`);
 }
 await closeDb();
+
+/** Tenant, content v1 and behaviour v1, promoted. Nothing is kept unless all of it is written. */
+async function seedBusiness(business: Business) {
+  const guidance = readSeed(business, "behaviour", "guidance.md");
+  if (guidance.length > 1500) throw new Error(`${business.id} guidance is ${guidance.length} characters; the cap is 1,500`);
+  await db.transaction(async (tx) => {
+    await tx.insert(tenants).values({
+      id: business.id,
+      tenantId: business.id,
+      name: business.name,
+      phone: business.phone,
+      vertical: business.vertical,
+      booking: business.booking,
+    });
+    const contentVersionId = await createContentVersion(
+      business.id,
+      1,
+      "Initial website",
+      seedPages(business),
+      seedQuestions(business),
+      tx,
+    );
+    const [v1] = await tx
+      .insert(versions)
+      .values({
+        tenantId: business.id,
+        number: 1,
+        contentVersionId,
+        guidance,
+        procedures: [
+          { key: "booking_request", title: "Booking request", steps: readSeed(business, "behaviour", "procedures", "booking-request.md") },
+          { key: "handover", title: "Handover", steps: readSeed(business, "behaviour", "procedures", "handover.md") },
+        ],
+        flowCatalogue: ["booking_request", "handover"],
+        config: { chatModel: MODEL_ROLES.chat, retrievalThreshold: business.retrievalThreshold, maxChunks: 4 },
+        note: "Initial behaviour",
+        createdBy: "seed",
+      })
+      .returning();
+    await promote(business.id, v1!.id, "seed", "promote", tx);
+  });
+  console.log(`[seed] ${business.id}: tenant, content v1 and behaviour v1 created; v1 promoted`);
+}

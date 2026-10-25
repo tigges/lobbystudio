@@ -1,0 +1,311 @@
+{
+  "contact#top": [
+    "What are your opening hours?",
+    "When is Mikan Hair Studio open?",
+    "Where exactly are you located in Chiswick?",
+    "How can I contact the salon?",
+    "Are you open on weekends?",
+    "What's the best way to get in touch with the studio?"
+  ],
+  "contact#opening-hours": [
+    "What time do you open on Tuesdays?",
+    "Are you open on a Monday?",
+    "What are your opening hours on Saturday?",
+    "Are you open on Sundays?",
+    "Do you open on bank holidays?",
+    "When is the last colour appointment on a Wednesday?",
+    "What time do you close on Friday?",
+    "Is the practice open on weekends?"
+  ],
+  "contact#how-to-contact-us": [
+    "How do I get in touch with you?",
+    "What's your phone number?",
+    "Can I book an appointment by email?",
+    "Can I book through Instagram?",
+    "How long does it take you to reply to emails?",
+    "Where are you located?",
+    "What's your address in London?",
+    "Do you have an email address I can use?"
+  ],
+  "contact#getting-here": [
+    "How do I get to the salon by train?",
+    "Which buses stop near the salon?",
+    "Is there parking at the salon?",
+    "Is the salon wheelchair accessible?",
+    "Are the toilets on the ground floor?",
+    "How far is the salon from Turnham Green station?",
+    "Can I park nearby if I drive?",
+    "Is there step-free access to the practice?"
+  ],
+  "contact#our-team": [
+    "Who works at the salon?",
+    "Who's the creative director here?",
+    "Who are the stylists I can book with?",
+    "Is there a colour specialist on the team?",
+    "Are the stylists trained in Japanese cutting techniques?",
+    "Do the colourists have any special qualifications?",
+    "Who's the graduate stylist?",
+    "Who should I book for a haircut and colour?"
+  ],
+  "prices#top": [
+    "How much does a colour cost?",
+    "Are the prices fixed for my hair?",
+    "Do longer hair cost more to colour?",
+    "Will my stylist tell me the price before starting?",
+    "Is the price different depending on the stylist I book?",
+    "What's the starting price for a treatment on short hair?",
+    "Why does the price vary for my hair?",
+    "Do I find out the cost before my appointment starts?"
+  ],
+  "prices#cut-and-style": [
+    "How much is a cut and blow-dry with a senior stylist?",
+    "What's the price for a graduate stylist cut and blow-dry?",
+    "How much does a restyle cost with a creative director?",
+    "Is a restyle more expensive than a regular cut and blow-dry?",
+    "How much is a fringe trim for existing clients?",
+    "What does a blow-dry cost with a stylist?",
+    "How much is a men's cut at the senior stylist level?",
+    "How much do you charge to cut a child's hair under 12?"
+  ],
+  "prices#colour": [
+    "How much is a root colour if my regrowth is up to 2cm?",
+    "What's the price for a full head of colour?",
+    "How much does a toner or gloss cost?",
+    "Do I need a patch test before colouring my hair?",
+    "How far ahead do I have to do a patch test?",
+    "Is a cut and blow-dry included in the colour price?",
+    "Do you do colour correction, and how much does it cost?",
+    "Can I get a root touch-up for around £68?"
+  ],
+  "prices#highlights-and-balayage": [
+    "How much do half head foils cost?",
+    "What's the price for full head foils?",
+    "How much is balayage?",
+    "How much are face-framing highlights?",
+    "How long does balayage take?",
+    "How long does a full head of foils usually take, including blow-dry?",
+    "Is the blow-dry included in the time for balayage?",
+    "What's the cheapest highlights option you do?"
+  ],
+  "prices#treatments": [
+    "How much does the Japanese repair treatment with blow-dry cost?",
+    "What's the price of a scalp treatment and head massage?",
+    "How long does the 30-minute scalp treatment and head massage take?",
+    "How long does the smoothing treatment last?",
+    "How much is a smoothing treatment?",
+    "How much does Japanese permanent straightening cost?",
+    "Is the Japanese repair treatment cheaper than the straightening?",
+    "What's the cheapest treatment you do?"
+  ],
+  "prices#paying": [
+    "Can I pay by card at the dentist?",
+    "Do you take Apple Pay or Google Pay?",
+    "Can I pay with cash?",
+    "Do you sell gift vouchers?",
+    "How much are dental gift vouchers?",
+    "What payment methods do you accept?"
+  ],
+  "prices#cancellations": [
+    "How much notice do I need to give to cancel my dental appointment?",
+    "What happens if I cancel my appointment last minute?",
+    "Will I get charged if I cancel with less than 24 hours' notice?",
+    "Do I have to pay if I just don't turn up to my appointment?",
+    "How much is the cancellation fee at the dentist?",
+    "Can I move my appointment to another time without being charged?",
+    "What's the charge if I miss my dental appointment without telling you?"
+  ],
+  "patch-tests#patch-tests-before-colour": [
+    "Do I need a patch test before getting my hair coloured?",
+    "How long before a colour appointment do I need to have a patch test?",
+    "Is the patch test free?",
+    "How long does a patch test take?",
+    "Do I need to book a patch test or can I just walk in?",
+    "I had a patch test with you a few months ago, do I need another one?",
+    "Do I need a new patch test if I've had a black henna tattoo?",
+    "Can I wash my hair after a patch test?"
+  ],
+  "patch-tests#if-you-have-a-reaction": [
+    "My scalp is itchy and sore after a hair colour, what should I do?",
+    "What do I do if the skin around my patch test gets red and swollen?",
+    "Who do I call if I have a reaction after a patch test?",
+    "Should I wait for my appointment if my scalp feels sore after colouring?",
+    "Will you colour my hair if I had a reaction during a patch test?",
+    "What's the advice if my skin reacts badly to a patch test?",
+    "Is it okay to wash off a patch test reaction with cool water?",
+    "Where do I get medical advice about a hair dye reaction?"
+  ],
+  "patch-tests#call-999-if-you-have-a-severe-reaction": [
+    "What should I do if my face or throat swells after a patch test?",
+    "Who do I call if I'm struggling to breathe after a dye or colour?",
+    "Is it an emergency if my lips or tongue swell up after a patch test?",
+    "I've got a rash all over and feel faint after a patch test, what do I do?",
+    "What symptoms mean I need to ring 999 after having a colour treatment?",
+    "Can I have trouble swallowing after a patch test and is that serious?"
+  ],
+  "patch-tests#aftercare": [
+    "How long should I wait before washing my hair after getting colour?",
+    "Do I need to use a special shampoo after colouring my hair?",
+    "How often should I get a toner or gloss to keep my blonde bright?",
+    "Is a sulphate-free shampoo good for keeping hair colour longer?",
+    "After colour, when can I wash my hair again?",
+    "How often should I book a toner for blondes?"
+  ],
+  "patch-tests#what-we-can-t-advise-on-in-the-chat": [
+    "Can you tell me if a treatment is safe for me while I'm pregnant?",
+    "Is it safe to have a patch test if I'm on medication?",
+    "Can the chat tell me whether I can have treatment with a scalp condition?",
+    "I had a reaction after my patch test, what should I do?",
+    "Will you give me medical advice about my health?",
+    "Can I ask the chatbot if a treatment is safe with my medication?"
+  ],
+  "faq#do-you-take-walk-ins": [
+    "Do you take walk-ins?",
+    "Can I just turn up without booking?",
+    "Are walk-ins accepted at the practice?",
+    "Is it okay to come in without an appointment?",
+    "What days are best for a walk-in?",
+    "Are Saturdays good for walk-ins?",
+    "Should I book ahead for a Saturday visit?",
+    "Do I need to book or can I walk in on a weekday?"
+  ],
+  "faq#how-long-will-my-appointment-take": [
+    "How long does a cut and blow-dry take?",
+    "How long is a full head colour appointment?",
+    "How long does balayage usually take?",
+    "How long will my hair appointment last?",
+    "How do I know how much time I've been booked for?",
+    "Will a full head of foils take about three hours?"
+  ],
+  "faq#which-stylist-level-should-i-book": [
+    "Which stylist level should I book for a haircut?",
+    "What's the difference between a graduate stylist and a senior stylist?",
+    "Should I book a graduate stylist to save money?",
+    "Who should I book for a complex cut or colour?",
+    "Is Aiko the best person for a restyle or a precision bob?",
+    "What if I don't know which stylist level to pick?",
+    "Can I just choose no preference when booking?"
+  ],
+  "faq#do-you-do-consultations": [
+    "Do you offer free consultations?",
+    "Is the 15-minute consultation free?",
+    "Can I get a patch test done during my consultation?",
+    "Are consultations free for colour changes?",
+    "Do you do free consults before a smoothing treatment?",
+    "Is there a charge for a consultation before a restyle?",
+    "Can I book a free chat about colour correction?",
+    "Do I have to pay for a consultation first?"
+  ],
+  "faq#do-you-cut-curly-or-textured-hair": [
+    "Do you cut curly hair?",
+    "Can I get my textured hair cut there?",
+    "Do Hana and Sam work with curly hair?",
+    "Is it okay if I have curls, will they cut it dry?",
+    "Do you specialise in curly or wavy hair?"
+  ],
+  "faq#do-you-do-hair-extensions-or-nails": [
+    "Do you do hair extensions?",
+    "Can I get my nails done here?",
+    "Do you offer wig services?",
+    "Do you do eyebrow shaping or brows?",
+    "Is beauty treatment available at your salon?",
+    "Do you only do cuts and colour, or anything else?",
+    "Can I get nails or hair extensions done while I'm in for a cut?",
+    "Do you offer hair treatments and colour?"
+  ],
+  "faq#do-you-cut-children-s-hair": [
+    "Do you cut kids' hair?",
+    "Is there a children's haircut price?",
+    "Can my child get a haircut without me there?",
+    "Until what age do you do children's haircuts?",
+    "Do you do haircuts for under-12s?",
+    "My son needs a trim, do you do children's cuts?"
+  ],
+  "faq#can-i-bring-my-dog": [
+    "Can I bring my dog to the dentist with me?",
+    "Are dogs allowed in the surgery?",
+    "Is it ok if I bring my dog along to my appointment?",
+    "Do you let dogs in the practice?",
+    "Can my pup come with me to the dental practice?",
+    "Are well-behaved dogs welcome at the clinic?"
+  ],
+  "faq#is-there-wifi": [
+    "Is there wifi?",
+    "Do you have wifi I can use while I wait?",
+    "What's the wifi password?",
+    "Can I get online at the surgery?",
+    "Is there free internet at the practice?",
+    "Do you do tea or coffee while I wait?",
+    "Is there any green tea available?",
+    "Can I get a hot drink in the waiting room?"
+  ],
+  "offers#midweek-colour-days": [
+    "Do you have any discounts on colour on Tuesdays?",
+    "Is there a midweek offer for balayage?",
+    "How much off full head colour on a Wednesday?",
+    "Can I get 20% off colour if I come in Tuesday or Wednesday?",
+    "Does the midweek colour deal work with other offers?",
+    "What do I need to say to get the colour discount when booking?"
+  ],
+  "offers#blow-dry-bundle": [
+    "Do you have any deals on blow-dries?",
+    "If I buy a blow-dry bundle, how many do I get for the price of three?",
+    "Can I use a blow-dry bundle with any stylist?",
+    "How long do I have to use my blow-dry bundle?",
+    "Can I share my blow-dry bundle with a friend?",
+    "Is the blow-dry offer for one person only?",
+    "Is there a discount if I pay for four blow-dries at once?"
+  ],
+  "offers#new-client-offer": [
+    "Do you have any discounts for new clients?",
+    "How much off is the first cut and blow-dry for new customers?",
+    "Is there a deal if I'm coming in for the first time?",
+    "Can I get 15% off my first haircut here?",
+    "Does the new client offer work with a graduate stylist too?",
+    "Got any first-visit offers on a cut and blow-dry?",
+    "Is the new client discount valid with senior stylists or just graduates?",
+    "What's the deal for new clients booking a haircut and blow-dry?"
+  ],
+  "offers#refer-a-friend": [
+    "How does the refer a friend scheme work?",
+    "If my mate books with you and says my name, do we both get money off?",
+    "Is there a discount for referring someone to the dentist?",
+    "How much do I save if I refer a friend to the practice?",
+    "Do I get £10 off if a friend mentions my name when booking?",
+    "What's the refer-a-friend deal at your dental practice?"
+  ],
+  "book#how-to-book": [
+    "How do I book an appointment?",
+    "Can I book through the chat?",
+    "What's the phone number to make a booking?",
+    "Can I book an appointment by email?",
+    "Can I book via Instagram?",
+    "What if none of the suggested times suit me?",
+    "How do I get an appointment without using the website chat?",
+    "Will someone call me back if I can't find a free time?"
+  ],
+  "book#before-your-colour-appointment": [
+    "Do I need to do a patch test before my colour appointment?",
+    "How long before my colour appointment should I get a patch test?",
+    "Can I just walk in for a patch test?",
+    "How long does a patch test take at the dentist?",
+    "Is a patch test needed before getting my hair coloured?",
+    "Do I have to book ahead for a patch test before colouring?"
+  ],
+  "book#changing-or-cancelling": [
+    "How do I cancel my dental appointment?",
+    "Can I change my appointment time?",
+    "How much notice do I need to give to cancel an appointment?",
+    "What number do I call to move my dentist appointment?",
+    "Will I get a reminder before my dental appointment?",
+    "Can I cancel my dentist appointment by text?",
+    "What if I need to cancel at short notice?"
+  ],
+  "book#arriving": [
+    "Should I arrive early for my dental appointment?",
+    "How early do I need to get to the surgery before my appointment?",
+    "What happens if I'm running late for my dental appointment?",
+    "If I'm 15 minutes late, will I still get my full appointment?",
+    "Will my dentist appointment be cut short if I turn up late?",
+    "Do I need to be there five minutes before my booking?"
+  ]
+}

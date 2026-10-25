@@ -55,7 +55,7 @@ export const MIKAN_HAIR: Business = {
     { slug: "offers", title: "Offers", navLabel: "Offers", file: "offers.md" },
     { slug: "book", title: "Book an appointment", navLabel: "Book", file: "book.md" },
   ],
-  retrievalThreshold: 0.68,
+  retrievalThreshold: 0.74,
   diary: {
     staff: [
       { id: "st-aiko", name: "Aiko", level: "Creative director" },

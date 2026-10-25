@@ -723,6 +723,14 @@ function timeOptions(flow: FlowState): string[] {
 
 export const NONE_OF_THESE = "None of these suit me";
 
+/** "1", "the second one", "last": a choice by position, when the visitor doesn't repeat the time. */
+const ORDINALS = [
+  /^(?:the )?(?:1|1st|first|top)(?: one| time)?(?: please)?[.!]?$/,
+  /^(?:the )?(?:2|2nd|second|middle)(?: one| time)?(?: please)?[.!]?$/,
+  /^(?:the )?(?:3|3rd|third)(?: one| time)?(?: please)?[.!]?$/,
+  /^(?:the )?(?:last)(?: one| time)?(?: please)?[.!]?$/,
+];
+
 /** The offered time the visitor chose, "none" when none suit, or null when it isn't clear. */
 export function pickTime(flow: FlowState, text: string): OfferedSlot | "none" | null {
   const offered = offeredTimes(flow);
@@ -731,6 +739,8 @@ export function pickTime(flow: FlowState, text: string): OfferedSlot | "none" | 
   const exact = offered.find((o) => o.label.toLowerCase() === t);
   if (exact) return exact;
   if (t === NONE_OF_THESE.toLowerCase() || NO_TIME_SUITS.test(t)) return "none";
+  const nth = ORDINALS.findIndex((re) => re.test(t));
+  if (nth >= 0) return (nth === 3 ? offered.at(-1) : offered[nth]) ?? null;
   const words = t.match(/[a-z0-9:]+/g)?.filter((w) => w.length > 1 && !["with", "the", "at", "on", "please", "one", "that", "ok"].includes(w)) ?? [];
   if (words.length === 0) return null;
   const matches = offered.filter((o) => words.every((w) => o.label.toLowerCase().includes(w)));
