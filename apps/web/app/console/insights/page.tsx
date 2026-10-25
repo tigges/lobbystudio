@@ -2,7 +2,7 @@ import Link from "next/link";
 import { groupTurns, insights, labelTitle, SLOW_TURN_MS, TURN_LABELS } from "@dental-bot/core";
 import { label, OUTCOME_STYLE, when } from "@/lib/format";
 import { SITE_TENANT } from "@/lib/site";
-import { LabelChip, LabelForm } from "../labels";
+import { ActionedForm, LabelChip, LabelForm } from "../labels";
 import { AdminNote } from "../ui";
 
 export const metadata = { title: "Insights" };
@@ -116,6 +116,7 @@ export default async function InsightsPage({ searchParams }: { searchParams: Pro
   const t = totals.turns;
   const labelled = data.labels.reduce((s, l) => s + l.turns, 0);
   const g = (group: string) => href(params, { group: selected === group ? undefined : group });
+  const openInList = list.filter((x) => x.label && x.label !== "good" && !x.actionedAt);
   const listPath = `/console/insights?${new URLSearchParams(Object.entries(params).filter((e): e is [string, string] => Boolean(e[1]))).toString()}`;
 
   return (
@@ -202,9 +203,10 @@ export default async function InsightsPage({ searchParams }: { searchParams: Pro
         <Panel title="Your labels" hint="Labels you gave in the turn ledger or below. Unlabelled turns are the review queue.">
           <Row to={g("label:none")} on={selected === "label:none"} name="Not labelled yet" count={t - labelled} total={t} />
           {TURN_LABELS.map((l) => {
-            const count = data.labels.find((x) => x.label === l.key)?.turns ?? 0;
-            if (!count) return null;
-            return <Row key={l.key} to={g(`label:${l.key}`)} on={selected === `label:${l.key}`} name={<LabelChip label={l.key} />} count={count} total={t} />;
+            const row = data.labels.find((x) => x.label === l.key);
+            if (!row?.turns) return null;
+            const fixed = l.key === "good" ? "" : row.open ? `${row.open} waiting for a fix` : "all fixed";
+            return <Row key={l.key} to={g(`label:${l.key}`)} on={selected === `label:${l.key}`} name={<LabelChip label={l.key} />} sub={fixed} count={row.turns} total={t} />;
           })}
         </Panel>
 
@@ -212,7 +214,7 @@ export default async function InsightsPage({ searchParams }: { searchParams: Pro
           {data.outcomes.map((o) => (
             <li key={o.outcome ?? "none"}>
               <Link
-                href={`/console/conversations?outcome=${o.outcome ?? "none"}${params.version ? `&version=${params.version}` : ""}`}
+                href={`/console/conversations?review=all&outcome=${o.outcome ?? "none"}${params.version ? `&version=${params.version}` : ""}`}
                 className="flex items-center gap-3 rounded-lg px-2 py-1.5 text-sm hover:bg-slate-50"
               >
                 <span className="flex-1">
@@ -241,6 +243,11 @@ export default async function InsightsPage({ searchParams }: { searchParams: Pro
               <Link href={href(params, { group: undefined })} className="text-sm text-harbour-700 hover:underline">
                 Close
               </Link>
+              {openInList.length > 0 && (
+                <span className="ml-auto">
+                  <ActionedForm turnIds={openInList.map((x) => x.id)} path={listPath} all />
+                </span>
+              )}
             </div>
             <div className="divide-y divide-slate-100 rounded-2xl bg-white ring-1 ring-slate-200">
               {list.length === 0 && <p className="p-4 text-sm text-slate-500">No turns in this group.</p>}
@@ -257,6 +264,9 @@ export default async function InsightsPage({ searchParams }: { searchParams: Pro
                         {(turn.latencyMs / 1000).toFixed(1)} s · ${turn.costUsd.toFixed(4)}
                       </span>
                       {turn.label && <LabelChip label={turn.label} />}
+                      {turn.label && turn.label !== "good" && (
+                        <ActionedForm turnIds={[turn.id]} actioned={Boolean(turn.actionedAt)} actionedIn={turn.actionedIn} path={listPath} />
+                      )}
                       {turn.kinds.map((k) => (
                         <span key={k} className="rounded bg-slate-100 px-1.5 py-0.5">
                           {REPLY_NAMES[k] ?? k}

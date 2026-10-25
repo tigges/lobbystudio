@@ -67,6 +67,7 @@ const STEPS = [
     img: "06-conversations.webp",
     body: [
       "Conversations lists every chat with its outcome, so you can see how the assistant is doing. Click the first message to open a conversation.",
+      "Conversations opens on “To review”: chats nobody has looked at yet. Labelling a turn, or “Mark reviewed, nothing to fix” in the ledger, moves a chat out of the queue, and “Next to review →” takes you to the next one. Chats with problem labels wait under “Labelled, waiting for a fix” until a release addresses them; then mark the labels fixed (in the ledger, or for a whole label group in Insights) and they move to “Fixed in a release”. Changing a label or its note reopens it.",
       "Outcomes are confirmed when the visitor says thanks, finishes a booking or rates the chat 4–5 stars. Otherwise they're assumed after 24 hours without activity, and reversed if the visitor comes back about the same thing within 7 days.",
     ],
   },

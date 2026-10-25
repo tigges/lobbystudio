@@ -1,6 +1,6 @@
 import { LABEL_GOALS, labelTitle, TURN_LABELS } from "@dental-bot/core";
 import { when } from "@/lib/format";
-import { labelTurnAction } from "./actions";
+import { actionedAction, labelTurnAction } from "./actions";
 import { SaveButton } from "./ui";
 
 export const LABEL_STYLE: Record<string, string> = {
@@ -93,6 +93,34 @@ export function LabelForm({
           </button>
         )}
       </div>
+    </form>
+  );
+}
+
+/** Marks problem labels as addressed by the running build, or reopens them. */
+export function ActionedForm({
+  turnIds,
+  actioned = false,
+  actionedIn = null,
+  path,
+  all = false,
+}: {
+  turnIds: number[];
+  actioned?: boolean;
+  actionedIn?: string | null;
+  path: string;
+  all?: boolean;
+}) {
+  const reopen = actioned;
+  return (
+    <form action={actionedAction} className="inline-flex items-center gap-2">
+      <input type="hidden" name="turnIds" value={turnIds.join(",")} />
+      <input type="hidden" name="actioned" value={reopen ? "0" : "1"} />
+      <input type="hidden" name="path" value={path} />
+      {reopen && <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] text-emerald-800 ring-1 ring-emerald-200">Fixed{actionedIn ? ` in build ${actionedIn}` : ""}</span>}
+      <button className={`text-[11px] font-medium hover:underline ${reopen ? "text-slate-500" : "text-emerald-700"}`}>
+        {reopen ? "Reopen" : all ? `Mark ${turnIds.length} as fixed in this build` : "Mark fixed"}
+      </button>
     </form>
   );
 }

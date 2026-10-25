@@ -184,6 +184,8 @@ export const conversations = pgTable(
     lastHumanAt: ts("last_human_at"),
     handedOverAt: ts("handed_over_at"),
     isDemo: boolean("is_demo").notNull().default(false),
+    /** Set by the admin once the conversation has been read, with or without labels. */
+    reviewedAt: ts("reviewed_at"),
   },
   (t) => [
     index("conversations_tenant_activity").on(t.tenantId, t.lastActivityAt),
@@ -277,6 +279,9 @@ export const turnLabels = pgTable(
     turnId: integer("turn_id").notNull(),
     label: text("label").notNull(),
     note: text("note"),
+    /** When a release addressed this label, and which build it was. */
+    actionedAt: ts("actioned_at"),
+    actionedIn: text("actioned_in"),
     createdAt: ts("created_at").notNull().defaultNow(),
     updatedAt: ts("updated_at").notNull().defaultNow(),
   },
