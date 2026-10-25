@@ -1,5 +1,6 @@
 import type { FlowState } from "@dental-bot/db/schema";
-import { BOOKING_SLOTS } from "./runtime/flows/booking-request.ts";
+import type { BookingDef } from "./runtime/flows/booking.ts";
+import { DENTAL_BOOKING } from "./runtime/flows/booking-request.ts";
 import { CONTACT_SLOTS } from "./runtime/flows/handover-contact.ts";
 
 export type FlowStep = { key: string; title: string; turns: number[] };
@@ -15,31 +16,17 @@ export type FlowRun = {
   end: { kind: FlowEnd; title: string; turn: number; step: string };
 };
 
-const STEP_TITLES: Record<string, string> = {
-  reason: "What for",
-  patient: "New or existing",
-  care: "NHS or private",
-  nhs_route: "NHS route",
-  preferred_time: "When",
-  time_of_day: "Time of day",
+const FLOW_TITLES: Record<string, string> = {
   name: "Name",
   phone: "Phone",
-  confirm: "Confirm",
   change: "Change",
   details: "Details",
   waiting: "Waiting",
 };
 
-/** Asked only for some visitors, so an unvisited one isn't a skip worth showing. */
-const SHOWN_IF_ASKED = new Set(["nhs_route", "time_of_day", "change", "details"]);
-
-const CATALOGUE: Record<FlowState["name"], readonly string[]> = {
-  booking_request: [...BOOKING_SLOTS, "change"],
-  handover: ["details", ...CONTACT_SLOTS, "waiting"],
-};
-
-export function stepTitle(step: string) {
-  return STEP_TITLES[step] ?? step;
+/** `def` is the business's booking steps; the dental ones by default. */
+export function stepTitle(step: string, def: BookingDef = DENTAL_BOOKING) {
+  return def.titles[step] ?? FLOW_TITLES[step] ?? step;
 }
 
 type LedgerTurn = {
@@ -52,7 +39,14 @@ type LedgerTurn = {
  * One run per stretch of turns spent in a flow. A turn counts towards the step the bot asked at the end of it,
  * so a step with two turns was asked twice.
  */
-export function flowRuns(turns: LedgerTurn[], teamReplied = false): FlowRun[] {
+export function flowRuns(turns: LedgerTurn[], teamReplied = false, def: BookingDef = DENTAL_BOOKING): FlowRun[] {
+  const catalogue: Record<FlowState["name"], readonly string[]> = {
+    booking_request: [...def.slots, "change"],
+    handover: ["details", ...CONTACT_SLOTS, "waiting"],
+  };
+  /** Asked only for some visitors, so an unvisited one isn't a skip worth showing. */
+  const shownIfAsked = new Set([...Object.keys(def.conditional), "change", "details"]);
+  const title = (step: string) => stepTitle(step, def);
   const runs: FlowRun[] = [];
   let cur: {
     flow: FlowState["name"];
@@ -65,11 +59,11 @@ export function flowRuns(turns: LedgerTurn[], teamReplied = false): FlowRun[] {
   const close = (end: FlowRun["end"] | null) => {
     if (!cur) return;
     const c = cur;
-    const steps = CATALOGUE[c.flow]
-      .filter((key) => c.visits.has(key) || !SHOWN_IF_ASKED.has(key))
+    const steps = catalogue[c.flow]
+      .filter((key) => c.visits.has(key) || !shownIfAsked.has(key))
       .map((key) => ({
         key,
-        title: stepTitle(key),
+        title: title(key),
         turns: c.visits.get(key) ?? [],
       }));
     runs.push({
@@ -77,7 +71,7 @@ export function flowRuns(turns: LedgerTurn[], teamReplied = false): FlowRun[] {
       title: c.flow === "booking_request" ? "Booking" : "Handover",
       startTurn: c.startTurn,
       steps,
-      end: end ?? openEnd(c.flow, c.last, c.lastTurn, teamReplied),
+      end: end ?? openEnd(c.flow, c.last, c.lastTurn, teamReplied, title),
     });
     cur = null;
   };
@@ -89,7 +83,12 @@ export function flowRuns(turns: LedgerTurn[], teamReplied = false): FlowRun[] {
       const sent = c.flow === "booking_request" && t.flowBefore?.step === "confirm" && !after;
       close(
         sent
-          ? { kind: "sent", title: "Request sent", turn: t.index, step: c.last }
+          ? {
+              kind: "sent",
+              title: t.flowBefore?.slots.slot_id ? "Sent to the booking system" : "Request sent",
+              turn: t.index,
+              step: c.last,
+            }
           : after?.name === "handover"
             ? {
                 kind: "passed_to_team",
@@ -99,7 +98,7 @@ export function flowRuns(turns: LedgerTurn[], teamReplied = false): FlowRun[] {
               }
             : {
                 kind: "left",
-                title: `Left at ${stepTitle(c.last)}`,
+                title: `Left at ${title(c.last)}`,
                 turn: t.index,
                 step: c.last,
               },
@@ -121,7 +120,13 @@ export function flowRuns(turns: LedgerTurn[], teamReplied = false): FlowRun[] {
   return runs;
 }
 
-function openEnd(flow: FlowState["name"], step: string, turn: number, teamReplied: boolean): FlowRun["end"] {
+function openEnd(
+  flow: FlowState["name"],
+  step: string,
+  turn: number,
+  teamReplied: boolean,
+  title: (step: string) => string,
+): FlowRun["end"] {
   if (flow === "handover" && step === "waiting") {
     return teamReplied
       ? { kind: "team_replied", title: "Team replied", turn, step }
@@ -129,7 +134,7 @@ function openEnd(flow: FlowState["name"], step: string, turn: number, teamReplie
   }
   return {
     kind: "stopped",
-    title: `Stopped at ${stepTitle(step)}`,
+    title: `Stopped at ${title(step)}`,
     turn,
     step,
   };

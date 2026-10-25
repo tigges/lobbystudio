@@ -14,11 +14,13 @@ import { detokenise } from "../pii/detect.ts";
 import { tokeniseForConversation, vaultValues } from "../pii/vault.ts";
 import { searchChunks } from "../retrieval/search.ts";
 import { runExecutor } from "../runtime/executor.ts";
-import { nextBookingStep } from "../runtime/flows/booking-request.ts";
+import { bookingSystemFor } from "../booking/index.ts";
+import type { BookingSystem } from "../booking/types.ts";
+import { packFor } from "../packs/index.ts";
+import { nextBookingStep } from "../runtime/flows/booking.ts";
 import { liveCompose, livePlan } from "../runtime/live.ts";
 import { offlineCompose, offlinePlan } from "../runtime/offline.ts";
-import { greeting } from "../runtime/templates.ts";
-import type { ExecutorDeps, ExecutorEvent, HistoryItem, TurnResult } from "../runtime/types.ts";
+import type { Bundle, ExecutorDeps, ExecutorEvent, HistoryItem, TurnResult } from "../runtime/types.ts";
 import { loadBundle, promotedVersionId } from "../versions.ts";
 import { loadConversation, readableMessages, type WidgetMessage } from "./conversations.ts";
 import { reverseIfReturning } from "./outcomes.ts";
@@ -35,11 +37,29 @@ export type TurnEvent =
 
 const RESUME_WITHIN_MS = 24 * 60 * 60 * 1000;
 
-export function depsFor(mode: LlmMode): ExecutorDeps {
+export function depsFor(mode: LlmMode, booking: BookingSystem | null = null): ExecutorDeps {
   return mode === "live"
-    ? { plan: livePlan, retrieve: (q, b) => searchChunks(q, b), compose: liveCompose }
-    : { plan: offlinePlan, retrieve: (q, b) => searchChunks(q, b), compose: (q, c) => offlineCompose(q, c) };
+    ? { plan: livePlan, retrieve: (q, b) => searchChunks(q, b), compose: liveCompose, booking }
+    : { plan: offlinePlan, retrieve: (q, b) => searchChunks(q, b), compose: (q, c) => offlineCompose(q, c), booking };
 }
+
+/** The business's booking system, given contact details in clear: the chat only ever holds them as tokens. */
+function bookingFor(tenantId: string, bundle: Bundle, values: Map<string, string>): BookingSystem | null {
+  const system = bookingSystemFor(tenantId, bundle.booking);
+  if (!system) return null;
+  return {
+    name: system.name,
+    availability: (q) => system.availability(q),
+    book: (input) =>
+      system.book({
+        ...input,
+        client: { name: detokenise(input.client.name, values), phone: detokenise(input.client.phone, values) },
+      }),
+  };
+}
+
+/** How the widget names the assistant and the team for this business. */
+export type ChatLabels = { assistant: string; talk: string; footer: string };
 
 export async function startSession(opts: {
   tenantId: string;
@@ -54,6 +74,7 @@ export async function startSession(opts: {
   /** A booking request is in progress, so the widget hides its own Book button. */
   booking: boolean;
   practice: { name: string; phone: string };
+  labels: ChatLabels;
   messages: WidgetMessage[];
 }> {
   const now = opts.now ?? new Date();
@@ -73,6 +94,7 @@ export async function startSession(opts: {
         status: conv.status,
         booking: (conv.flow as FlowState | null)?.name === "booking_request",
         practice: bundle.practice,
+        labels: packFor(bundle.vertical).labels,
         messages: await readableMessages(opts.tenantId, conv.id),
       };
     }
@@ -96,7 +118,7 @@ export async function startSession(opts: {
     conversationId: conv!.id,
     role: "bot",
     kind: "greeting",
-    text: greeting(bundle.practice),
+    text: packFor(bundle.vertical).greeting(bundle.practice),
     createdAt: now,
   });
   return {
@@ -105,11 +127,11 @@ export async function startSession(opts: {
     status: conv!.status,
     booking: false,
     practice: bundle.practice,
+    labels: packFor(bundle.vertical).labels,
     messages: await readableMessages(opts.tenantId, conv!.id),
   };
 }
 
-const ACTION_LABELS = { book: "Book an appointment", handover: "Talk to the practice" } as const;
 
 export async function runTurn(opts: {
   tenantId: string;
@@ -130,13 +152,14 @@ export async function runTurn(opts: {
   if (!conv) throw new Error("conversation not found");
   if (conv.status === "closed") throw new Error("conversation is closed");
   const bundle = await loadBundle(conv.versionId);
+  const pack = packFor(bundle.vertical);
   const action = opts.action ?? null;
   const rawText = opts.text?.trim() || null;
   if (!rawText && !action) throw new Error("text or action required");
 
   const flow = conv.flow as FlowState | null;
   const expectingName =
-    (flow?.name === "booking_request" && flow.step !== "change" && nextBookingStep(flow) === "name") ||
+    (flow?.name === "booking_request" && flow.step !== "change" && nextBookingStep(pack.booking, flow, { online: Boolean(bookingSystemFor(opts.tenantId, bundle.booking)) }) === "name") ||
     (flow?.name === "handover" && flow.step === "name");
   const tokenised = rawText
     ? (await tokeniseForConversation(opts.tenantId, conv.id, rawText, { expectingName })).text
@@ -168,7 +191,7 @@ export async function runTurn(opts: {
     conversationId: conv.id,
     role: "visitor",
     kind: action ? "action" : "text",
-    text: tokenised ?? ACTION_LABELS[action!],
+    text: tokenised ?? (action === "book" ? "Book an appointment" : pack.labels.talk),
     createdAt: now,
   });
 
@@ -187,7 +210,7 @@ export async function runTurn(opts: {
       bookingOffered: offered || Boolean(conv.handedOverAt),
       teamReplied: Boolean(conv.lastHumanAt && conv.handedOverAt && conv.lastHumanAt >= conv.handedOverAt),
     },
-    depsFor(mode),
+    depsFor(mode, bookingFor(opts.tenantId, bundle, values)),
     (e) => emit(e.type === "delta" ? { ...e, text: detokenise(e.text, values) } : e),
   );
   const latencyMs = Date.now() - started;
@@ -247,6 +270,9 @@ export async function runTurn(opts: {
       tenantId: opts.tenantId,
       conversationId: conv.id,
       slots: result.booking,
+      channel: result.bookedOnline ? "online" : "callback",
+      system: result.bookedOnline?.system ?? null,
+      externalRef: result.bookedOnline?.ref ?? null,
       createdAt: now,
     });
   }

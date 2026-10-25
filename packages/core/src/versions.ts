@@ -10,6 +10,7 @@ import {
   versions,
   type Source,
 } from "@dental-bot/db";
+import { packFor } from "./packs/index.ts";
 import type { Bundle } from "./runtime/types.ts";
 
 const bundleCache = new Map<number, Bundle>();
@@ -22,6 +23,7 @@ export async function loadBundle(versionId: number): Promise<Bundle> {
   if (!v) throw new Error(`version ${versionId} not found`);
   const [cv] = await db.select().from(contentVersions).where(eq(contentVersions.id, v.contentVersionId));
   const [tenant] = await db.select().from(tenants).where(eq(tenants.id, v.tenantId));
+  const pack = packFor(tenant!.vertical);
   const emergencyChunks = await db
     .select()
     .from(chunks)
@@ -29,7 +31,7 @@ export async function loadBundle(versionId: number): Promise<Bundle> {
       and(
         eq(chunks.tenantId, v.tenantId),
         eq(chunks.contentVersionId, v.contentVersionId),
-        eq(chunks.pageSlug, "emergencies"),
+        eq(chunks.pageSlug, pack.handoverSources.slug),
       ),
     )
     .orderBy(chunks.id);
@@ -52,9 +54,11 @@ export async function loadBundle(versionId: number): Promise<Bundle> {
     flowCatalogue: v.flowCatalogue,
     config: v.config,
     practice: { name: tenant!.name, phone: tenant!.phone },
+    vertical: pack.vertical,
+    booking: tenant!.booking,
     handoverSources: {
-      urgent: pick(/^(call-999|urgent-dental-problems|when-we-are-closed)/),
-      clinical: pick(/^what-we-cannot-do/),
+      urgent: pick(pack.handoverSources.urgent),
+      clinical: pick(pack.handoverSources.clinical),
     },
   };
   bundleCache.set(versionId, bundle);

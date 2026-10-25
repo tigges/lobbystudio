@@ -1,4 +1,7 @@
+import type { BookedAppointment, BookingSystem } from "../booking/types.ts";
+import type { Vertical } from "../packs/types.ts";
 import type {
+  BookingConfig,
   BundleConfig,
   FlowState,
   GuardrailHit,
@@ -33,6 +36,9 @@ export type Bundle = {
   flowCatalogue: string[];
   config: BundleConfig;
   practice: Practice;
+  /** The business pack: booking steps, safety rules and wording. */
+  vertical: Vertical;
+  booking: BookingConfig;
   /** Pages the fixed handover templates are written from, shown as their sources. */
   handoverSources: { urgent: Source[]; clinical: Source[] };
 };
@@ -64,6 +70,8 @@ export type ExecutorDeps = {
   plan(ctx: TurnContext): Promise<PlannerResult>;
   retrieve(query: string, bundle: Bundle): Promise<ScoredChunk[]>;
   compose(query: string, chunks: ScoredChunk[], bundle: Bundle): ComposeResult;
+  /** The business's booking system, when bookings go online. */
+  booking?: BookingSystem | null;
   now?: () => number;
 };
 
@@ -111,6 +119,8 @@ export type TurnResult = {
   status: "active" | "handed_over";
   handover: { reason: HandoverReason; trigger: "precheck" | "planner" | "visitor_button" } | null;
   booking: Record<string, string> | null;
+  /** Set when the booking was made in the business's booking system rather than sent as a call-back request. */
+  bookedOnline: BookedAppointment | null;
   /** Contact details collected for the open handover; set whenever they change. */
   contact: Record<string, string> | null;
   act: BotAct;

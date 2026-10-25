@@ -11,6 +11,8 @@ export const bundle: Bundle = {
   flowCatalogue: ["booking_request", "handover"],
   config: { chatModel: "test-model", retrievalThreshold: 0.68, maxChunks: 4 },
   practice: { name: "Harbour Dental", phone: "020 7946 0321" },
+  vertical: "dental",
+  booking: { mode: "callback" },
   handoverSources: {
     urgent: [{ page: "Emergencies", slug: "emergencies", heading: "Call 999 or go to A&E", anchor: "call-999-or-go-to-a-and-e", chunkId: 90 }],
     clinical: [{ page: "Emergencies", slug: "emergencies", heading: "What we cannot do in the chat", anchor: "what-we-cannot-do-in-the-chat", chunkId: 94 }],
