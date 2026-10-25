@@ -44,6 +44,10 @@ export type BookingDef = {
   changeSlot(text: string): string;
   /** Offline planner: the first slot's value when the booking request already names it, e.g. "book a hygienist". */
   firstValueFrom(text: string): string | null;
+  /** Slots the visitor has already told us, from their messages, oldest first; later messages win. */
+  prefill?(texts: string[]): Record<string, string>;
+  /** Said before the first question when a booking starts with slots already filled. */
+  startedWith?(slots: Record<string, string>): string;
 };
 
 export const PART_OF_DAY =
@@ -87,8 +91,9 @@ export function commonSlot(slot: string, value: string, notAName: RegExp): SlotR
   }
 }
 
-export function startBooking(def: BookingDef): FlowState {
-  return { name: "booking_request", step: def.slots[0]!, slots: {} };
+export function startBooking(def: BookingDef, slots: Record<string, string> = {}): FlowState {
+  const known = Object.fromEntries(Object.entries(slots).filter(([k]) => def.slots.includes(k)));
+  return { name: "booking_request", step: def.slots[0]!, slots: known };
 }
 
 /** The first slot still missing, in catalogue order. */

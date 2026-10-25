@@ -1,7 +1,25 @@
-import { bookingWhat, PATCH_NOTE, SALON_BOOKING, stylistPhrase } from "../runtime/flows/salon-booking.ts";
+import { bookingWhat, COLOUR_SERVICE, PATCH_NOTE, SALON_BOOKING, serviceWithStylist, stylistPhrase } from "../runtime/flows/salon-booking.ts";
 import { CLINICAL_OUTPUT, type PrecheckRule } from "../runtime/guardrails.ts";
 import type { Practice } from "../runtime/templates.ts";
 import type { Pack } from "./types.ts";
+
+/** Offers that carry on from the answer: the topic decides the wording, the visitor's own details fill it in. */
+function salonFollowUp({ headings, slots }: { headings: string[]; slots: Record<string, string> }): string | null {
+  const on = (h: string) => headings.includes(h);
+  const colour = slots.service && COLOUR_SERVICE.test(slots.service) ? slots : { ...slots, service: "colour" };
+  if (on("Patch tests before colour")) {
+    return `A patch test takes five minutes and you can walk in for one. Would you like me to book ${serviceWithStylist(colour, "your")} for at least 48 hours after?`;
+  }
+  if (on("Midweek colour days")) {
+    return `Would you like me to look for a Tuesday or Wednesday time for ${serviceWithStylist(colour, "your")}?`;
+  }
+  if (on("Do you take walk-ins?")) {
+    return "Would you like me to book you a time instead, so you're sure of a stylist?";
+  }
+  const what = serviceWithStylist(slots);
+  if (!what && !slots.preferred_time) return null;
+  return `Would you like me to find you a time${slots.preferred_time ? ` on ${slots.preferred_time}` : ""}${what ? ` for ${what}` : ""}?`;
+}
 
 /** Allergic reactions and sore or burnt scalps after a treatment always go to the team, whatever the model would say. */
 const SALON_PRECHECK: PrecheckRule[] = [
@@ -79,6 +97,7 @@ export const SALON_PACK: Pack = {
     /\b(?:new clients?|first (?:visit|time)|how much|cost\w*|price\w*|fees?|park\w*|step-?free|wheelchair|access\w*|get there|find you|directions|patch tests?|free (?:today|tomorrow|on))\b/i,
   bookingOffer: "If you'd like to come in, I can help you book an appointment.",
   acknowledgeWithOffer: "You're welcome. If you'd like to come in, I can help you book.",
+  followUp: salonFollowUp,
   booking: SALON_BOOKING,
   online: {
     slotPrompt: (slots) =>

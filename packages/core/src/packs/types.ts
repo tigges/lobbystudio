@@ -39,6 +39,11 @@ export type Pack = {
   visitIntent: RegExp;
   bookingOffer: string;
   acknowledgeWithOffer: string;
+  /**
+   * A booking offer that follows on from what was just answered and what the visitor has told us,
+   * e.g. "Would you like me to find you a time on Saturdays for a cut & style?". Null for the plain offer.
+   */
+  followUp?(input: { headings: string[]; slots: Record<string, string> }): string | null;
   booking: BookingDef;
   /** Wording for booking straight into the business's booking system. */
   online: {

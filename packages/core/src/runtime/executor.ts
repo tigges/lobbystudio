@@ -346,6 +346,7 @@ export async function runExecutor(ctx: TurnContext, deps: ExecutorDeps, emit: Em
 
   let flow: FlowState | null = ctx.flow ? { ...ctx.flow, slots: { ...ctx.flow.slots } } : null;
   let flowTouched = false;
+  let startedLead = "";
   let invalidSlot: string | null = null;
 
   for (const c of commands) {
@@ -354,7 +355,8 @@ export async function runExecutor(ctx: TurnContext, deps: ExecutorDeps, emit: Em
         await answer(c.query);
         break;
       case "start_flow":
-        flow = startBooking(def);
+        flow = startBooking(def, def.prefill?.(knownTexts({ withOffer: offerPending() })));
+        startedLead = Object.keys(flow.slots).length ? (def.startedWith?.(flow.slots) ?? "") : "";
         flowTouched = true;
         break;
       case "set_slot": {
@@ -444,7 +446,7 @@ export async function runExecutor(ctx: TurnContext, deps: ExecutorDeps, emit: Em
             : def.invalid[step]!
           : rebook && step === "confirm"
             ? def.ready
-            : `${rebook ? `${def.continue} ` : ""}${ask}`;
+            : `${rebook ? `${def.continue} ` : ""}${startedLead ? `${startedLead} ` : ""}${ask}`;
         out.template("flow", prompt, [], step === SLOT_STEP ? timeOptions(flow) : bookingOptions(def, step));
         if (result.answered === 0 || flowTouched) result.act = "flow";
       }
@@ -454,9 +456,15 @@ export async function runExecutor(ctx: TurnContext, deps: ExecutorDeps, emit: Em
   result.flow = flow;
 
   const answeredTotal = (ctx.answeredBefore ?? 0) + result.answered;
-  if (!flow && result.act === "answered" && result.answered > 0 && mayOffer() && (answeredTotal >= 2 || pack.visitIntent.test(text))) {
-    trace.guardrails.push({ rule: "booking_offer", result: "hit", detail: answeredTotal >= 2 ? "second answer" : "visit question" });
-    out.template("suggest", pack.bookingOffer, [], T.OFFER_OPTIONS);
+  if (!flow && result.act === "answered" && result.answered > 0) {
+    const followUp = pack.followUp?.({ headings: citedHeadings(), slots: def.prefill?.(knownTexts()) ?? {} }) ?? null;
+    if (followUp && mayFollowUp(followUp)) {
+      trace.guardrails.push({ rule: "booking_offer", result: "hit", detail: "follow-up" });
+      out.template("suggest", followUp, [], T.OFFER_OPTIONS);
+    } else if (mayOffer() && (answeredTotal >= 2 || pack.visitIntent.test(text))) {
+      trace.guardrails.push({ rule: "booking_offer", result: "hit", detail: answeredTotal >= 2 ? "second answer" : "visit question" });
+      out.template("suggest", pack.bookingOffer, [], T.OFFER_OPTIONS);
+    }
   }
 
   if (out.segments.length === 0) {
@@ -496,6 +504,25 @@ export async function runExecutor(ctx: TurnContext, deps: ExecutorDeps, emit: Em
     return !ctx.bookingOffered && !ctx.flow;
   }
 
+  /** A follow-up may come after an earlier offer the visitor let pass, but not after "Not right now", and never twice. */
+  function mayFollowUp(offer: string) {
+    if (ctx.flow || ctx.bookingClosed) return false;
+    return !ctx.history.some((h) => h.role === "bot" && (h.text === offer || h.text === T.OFFER_DECLINED));
+  }
+
+  function citedHeadings() {
+    return [...new Set(out.segments.filter((s) => s.kind === "answer").flatMap((s) => s.sources.map((src) => src.heading)))];
+  }
+
+  /** What the visitor has said in this chat, oldest first, plus the offer they're accepting. */
+  function knownTexts({ withOffer = false } = {}) {
+    const texts = ctx.history.filter((h) => h.role === "visitor").map((h) => h.text);
+    const lastBot = ctx.history.findLast((h) => h.role === "bot");
+    if (withOffer && lastBot) texts.push(lastBot.text);
+    if (text) texts.push(text);
+    return texts;
+  }
+
   function askedAnythingElse() {
     return /anything else I can help with(?: before your visit)?\?$/.test(ctx.history.findLast((h) => h.role === "bot")?.text ?? "");
   }
@@ -520,8 +547,8 @@ export async function runExecutor(ctx: TurnContext, deps: ExecutorDeps, emit: Em
   }
 
   function offerPending() {
-    const lastBot = ctx.history.findLast((h) => h.role === "bot")?.text;
-    return lastBot === pack.bookingOffer || lastBot === pack.acknowledgeWithOffer;
+    const lastBot = ctx.history.findLast((h) => h.role === "bot");
+    return lastBot?.kind === "suggest" || lastBot?.text === pack.bookingOffer || lastBot?.text === pack.acknowledgeWithOffer;
   }
 
   function nextStepOf(f: FlowState) {

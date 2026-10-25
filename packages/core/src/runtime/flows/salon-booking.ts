@@ -72,6 +72,49 @@ export function bookingWhat(slots: Record<string, string>) {
   return slots.slot_id ? `${serviceText(slots)}, ${slots.slot}` : `${serviceText(slots)} ${stylistPhrase(slots.stylist)}`;
 }
 
+const DAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+const DAYS = /\b(mon|tues|wednes|thurs|fri|satur|sun)days?\b|\bweekends?\b/gi;
+
+/** The days the visitor names, e.g. "Saturdays" or "Tuesday or Wednesday", or null. */
+export function namedDays(text: string): string | null {
+  const days: string[] = [];
+  for (const m of text.matchAll(DAYS)) {
+    const word = m[0].toLowerCase();
+    const day = word.startsWith("weekend") ? word : DAY_NAMES.find((d) => word.startsWith(d.slice(0, 3).toLowerCase()))! + (word.endsWith("s") ? "s" : "");
+    const named = day.startsWith("weekend") ? day : day.charAt(0).toUpperCase() + day.slice(1);
+    if (!days.includes(named)) days.push(named);
+  }
+  if (days.length === 0) return null;
+  return days.length === 1 ? days[0]! : `${days.slice(0, -1).join(", ")} or ${days.at(-1)}`;
+}
+
+/** A stylist level named outright; a bare "stylist" is too common in questions to count. */
+const NAMED_LEVEL = /\b(?:senior|graduate|junior|trainee|creative director)\b/i;
+
+function salonPrefill(texts: string[]): Record<string, string> {
+  const slots: Record<string, string> = {};
+  for (const text of texts) {
+    const service = SALON_BOOKING.firstValueFrom(text);
+    if (service) slots.service = service;
+    if (NAMED_LEVEL.test(text)) {
+      const level = validateSalonSlot("stylist", text.match(NAMED_LEVEL)![0]);
+      if (level.ok) slots.stylist = level.value;
+    }
+    const days = namedDays(text);
+    if (days) slots.preferred_time = days;
+  }
+  return slots;
+}
+
+/** "a cut & style with a senior stylist", "highlights": the service and stylist as said in an offer. */
+export function serviceWithStylist(slots: Record<string, string>, article: "a" | "your" = "a"): string | null {
+  if (!slots.service) return null;
+  const service = slots.service.toLowerCase();
+  const plural = /[^s]s$/.test(service);
+  const what = article === "your" ? `your ${service}` : plural ? service : `${/^[aeiou]/.test(service) ? "an" : "a"} ${service}`;
+  return slots.stylist ? `${what} ${stylistPhrase(slots.stylist)}` : what;
+}
+
 export const PATCH_NOTE = "You'll need a patch test at least 48 hours before; it takes five minutes and you can just walk in.";
 
 export const SALON_BOOKING: BookingDef = {
@@ -176,9 +219,16 @@ export const SALON_BOOKING: BookingDef = {
     if (/balayage/i.test(text)) return "Balayage";
     if (/highlight|foil/i.test(text)) return "Highlights";
     if (/colou?r|roots|tint/i.test(text)) return "Colour";
-    if (/blow-?dry/i.test(text)) return "Blow-dry";
+    if (/\btoner|gloss/i.test(text)) return "Toner";
     if (/smoothing|keratin|brazilian/i.test(text)) return "Smoothing treatment";
     if (/\b(cut|trim|haircut)\b/i.test(text)) return "Cut & style";
+    if (/blow-?dry/i.test(text)) return "Blow-dry";
     return null;
+  },
+  prefill: salonPrefill,
+  startedWith(slots) {
+    const what = serviceWithStylist(slots);
+    if (!what) return "";
+    return `Lovely, ${what}${slots.preferred_time ? ` on ${slots.preferred_time}` : ""}.`;
   },
 };

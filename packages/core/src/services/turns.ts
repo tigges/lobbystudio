@@ -166,20 +166,20 @@ export async function runTurn(opts: {
     : null;
 
   const historyRows = await db
-    .select({ role: messages.role, text: messages.text })
+    .select({ role: messages.role, text: messages.text, kind: messages.kind })
     .from(messages)
     .where(and(eq(messages.tenantId, opts.tenantId), eq(messages.conversationId, conv.id)))
     .orderBy(desc(messages.id))
     .limit(12);
   const history: HistoryItem[] = historyRows.reverse();
 
-  const [{ offered }] = (await db
+  const [{ offered, booked }] = (await db
     .select({
-      offered: sql<boolean>`exists (select 1 from ${messages} m where m.conversation_id = "conversations"."id" and m.kind = 'suggest')
-        or exists (select 1 from ${bookingRequests} b where b.conversation_id = "conversations"."id")`,
+      offered: sql<boolean>`exists (select 1 from ${messages} m where m.conversation_id = "conversations"."id" and m.kind = 'suggest')`,
+      booked: sql<boolean>`exists (select 1 from ${bookingRequests} b where b.conversation_id = "conversations"."id")`,
     })
     .from(conversations)
-    .where(eq(conversations.id, conv.id))) as [{ offered: boolean }];
+    .where(eq(conversations.id, conv.id))) as [{ offered: boolean; booked: boolean }];
 
   const [{ n: turnIndex }] = (await db
     .select({ n: sql<number>`count(*)::int` })
@@ -209,7 +209,8 @@ export async function runTurn(opts: {
       bundle,
       lastBotAct: conv.lastBotAct,
       answeredBefore: conv.answeredCount,
-      bookingOffered: offered || Boolean(conv.handedOverAt),
+      bookingOffered: offered || booked || Boolean(conv.handedOverAt),
+      bookingClosed: booked || Boolean(conv.handedOverAt),
       teamReplied: Boolean(conv.lastHumanAt && conv.handedOverAt && conv.lastHumanAt >= conv.handedOverAt),
     },
     { ...depsFor(mode, bookingFor(opts.tenantId, bundle, values)), now: () => Date.now() + clockOffset },
