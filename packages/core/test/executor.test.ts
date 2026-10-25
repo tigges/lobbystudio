@@ -231,6 +231,20 @@ describe("booking_request flow", () => {
     expect(r.segments[1]!.text).toMatch(/phone number/);
   });
 
+  it("explains that times are agreed by phone, then returns to the summary", async () => {
+    const flow = {
+      name: "booking_request" as const,
+      step: "change",
+      slots: { reason: "Check-up", name: "‹NAME_1›", phone: "‹PHONE_1›", preferred_time: "tomorrow" },
+    };
+    const { deps, calls } = fakeDeps({ commands: [{ cmd: "handover", reason: "visitor_request" }] });
+    const r = await runExecutor(ctx({ visitorText: "I want a date/time confirmation for my appointment", flow }), deps);
+    expect(calls.plan).toBe(0);
+    expect(r.handover).toBeNull();
+    expect(r.segments.map((s) => s.text)).toEqual([expect.stringMatching(/can't confirm a date or time/), expect.stringMatching(/Shall I send this/)]);
+    expect(r.flow?.slots.preferred_time).toBe("tomorrow");
+  });
+
   it("fills the expected slot from the visitor text when the planner emits nothing", async () => {
     const flow = { name: "booking_request" as const, step: "preferred_time", slots: { reason: "Check-up", name: "A", phone: "‹PHONE_1›" } };
     const { deps } = fakeDeps({ commands: [] });
@@ -306,6 +320,39 @@ describe("command validation", () => {
     expect(calls.plan).toBe(0);
     expect(r.affirmed).toBe(true);
     expect(r.act).toBe("acknowledged");
+  });
+
+  it("greets back with starter questions without calling the planner", async () => {
+    const { deps, calls } = fakeDeps();
+    const r = await runExecutor(ctx({ visitorText: "hi" }), deps);
+    expect(calls.plan).toBe(0);
+    expect(r.act).toBe("acknowledged");
+    expect(r.segments[0]!.options.length).toBeGreaterThan(0);
+  });
+
+  it("answers the chosen option instead of clarifying twice in a row", async () => {
+    const { deps, calls } = fakeDeps({
+      commands: [{ cmd: "clarify", options: ["Prices", "Opening hours"] }],
+      chunks: [hoursChunk],
+      composed: "On Saturday we open 9am to 1pm [1].",
+    });
+    const r = await runExecutor(ctx({ visitorText: "Ask about opening hours", lastBotAct: "clarify" }), deps);
+    expect(calls.retrieve).toEqual(["Ask about opening hours"]);
+    expect(r.act).toBe("answered");
+    expect(r.trace.guardrails).toContainEqual(expect.objectContaining({ rule: "no_double_clarify" }));
+  });
+
+  it("offers the page's sections when a short topic cannot be answered directly", async () => {
+    const intro = { ...hygieneChunk, chunkId: 10, heading: "Treatments and prices", score: 0.77 };
+    const { deps } = fakeDeps({
+      commands: [{ cmd: "answer_from_knowledge", query: "prices" }],
+      chunks: [intro, { ...hygieneChunk, score: 0.72 }, { ...fillingChunk, score: 0.7 }, { ...hoursChunk, score: 0.69 }],
+      composed: "NO_ANSWER",
+    });
+    const r = await runExecutor(ctx({ visitorText: "prices" }), deps);
+    expect(r.act).toBe("clarify");
+    expect(r.fallbacks).toBe(0);
+    expect(r.segments[0]!.options).toEqual(["Check-ups and hygiene", "Fillings and root canal treatment"]);
   });
 
   it("serves a technical-problem message with the phone number when the planner fails", async () => {

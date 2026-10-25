@@ -51,6 +51,12 @@ export function cannotHandle(p: Practice, reason: "out_of_scope" | "unsupported_
 
 export const CLARIFY_LEAD = "Just to check, which of these do you mean?";
 
+export const GREET_BACK = "Hello! What would you like to know?";
+
+export const GREET_OPTIONS = ["What are your opening hours?", "How much is a check-up?", "Do you see NHS patients?"];
+
+export const TOPIC_LEAD = "That covers a few things. Which would you like to know about?";
+
 export const ACKNOWLEDGE = "You're welcome. Is there anything else I can help with?";
 
 export const WAITING_FOR_TEAM = "The practice team has your message and will reply here.";

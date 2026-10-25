@@ -46,6 +46,8 @@ export type TurnContext = {
   status: "active" | "handed_over" | "closed";
   history: HistoryItem[];
   bundle: Bundle;
+  /** The last substantive act of the bot in this conversation, e.g. "clarify". */
+  lastBotAct?: string | null;
 };
 
 export type PlannerResult = { commands: unknown; call: ModelCall | null };

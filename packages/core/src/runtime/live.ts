@@ -28,7 +28,24 @@ export function plannerSystemPrompt(bundle: Bundle): string {
     "# Notes",
     "- Personal details appear as tokens such as ‹NAME_1› or ‹PHONE_1›. Copy tokens exactly into set_slot values.",
     "- Emit between 1 and 4 commands. Write search queries as standalone questions.",
+    "- Clarify options are sent back as the visitor's next message, so write each one as a specific question",
+    "  the website answers, e.g. \"What are your opening hours?\", never a menu heading like \"Ask about prices\".",
+    "- If the visitor just picked an option you offered, answer it; do not clarify again.",
+    "- Questions about today, tomorrow or right now are answerable from the opening hours: use answer_from_knowledge.",
   ].join("\n");
+}
+
+/** The practice's local day and time, so "are you open now?" can be answered from the opening hours. */
+export function practiceNow(d: Date = new Date()): string {
+  return new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Europe/London",
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(d);
 }
 
 function plannerUserMessage(ctx: TurnContext): string {
@@ -41,7 +58,11 @@ function plannerUserMessage(ctx: TurnContext): string {
     const step = ctx.flow.step === "change" ? "change (visitor wants to change a detail)" : nextBookingStep(ctx.flow);
     state = `Active flow: booking_request. Waiting for: ${step}. Slots so far: ${JSON.stringify(ctx.flow.slots)}.`;
   }
-  return `${history ? `Conversation so far:\n${history}\n\n` : ""}${state}\n\nLatest visitor message:\n${ctx.visitorText ?? ""}`;
+  return (
+    `${history ? `Conversation so far:\n${history}\n\n` : ""}${state}\n` +
+    `Last assistant act: ${ctx.lastBotAct ?? "none"}. Now at the practice: ${practiceNow()}.\n\n` +
+    `Latest visitor message:\n${ctx.visitorText ?? ""}`
+  );
 }
 
 export async function livePlan(ctx: TurnContext): Promise<PlannerResult> {
@@ -79,12 +100,15 @@ const COMPOSE_SYSTEM = (practiceName: string) =>
     "- Copy prices, times, numbers and phone numbers exactly. Keep qualifiers such as \"from\".",
     "- Never give advice about symptoms, treatment choices or medicines.",
     "- At most three short sentences, plain British English, speaking as \"we\".",
+    "- You are told the current day and time at the practice. For questions about now, today or tomorrow,",
+    "  work the answer out from the opening hours, naming the day (\"we're closed on Sundays\") and only times",
+    "  that appear in the extracts. Never state the current time or date itself.",
     "- If the extracts do not answer the question, reply with exactly NO_ANSWER.",
   ].join("\n");
 
-export function composeUserMessage(query: string, chunks: ScoredChunk[]): string {
+export function composeUserMessage(query: string, chunks: ScoredChunk[], now: string = practiceNow()): string {
   const extracts = chunks.map((c, i) => `[${i + 1}] ${c.page} › ${c.heading}\n${c.text}`).join("\n\n");
-  return `Question: ${query}\n\nExtracts:\n${extracts}`;
+  return `Question: ${query}\nNow at the practice: ${now}\n\nExtracts:\n${extracts}`;
 }
 
 export function liveCompose(query: string, chunks: ScoredChunk[], bundle: Bundle): ComposeResult {

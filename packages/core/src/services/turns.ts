@@ -165,6 +165,7 @@ export async function runTurn(opts: {
       status: conv.status,
       history,
       bundle,
+      lastBotAct: conv.lastBotAct,
     },
     depsFor(mode),
     (e) => emit(e.type === "delta" ? { ...e, text: detokenise(e.text, values) } : e),

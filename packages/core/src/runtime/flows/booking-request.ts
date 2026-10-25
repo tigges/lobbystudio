@@ -80,6 +80,9 @@ export const BOOKING_INVALID: Record<string, string> = {
 export const BOOKING_CHANGE_PROMPT =
   "No problem. Which detail would you like to change: the appointment type, your name, phone number or preferred times?";
 
+export const BOOKING_TIME_NOTE =
+  "I can't confirm a date or time in the chat. The team calls you back to agree one, usually the same working day.";
+
 export function bookingDone(slots: Record<string, string>): string {
   return `Done. The team will call you on ${slots.phone} to confirm a time, usually the same working day.`;
 }

@@ -6,13 +6,22 @@ import {
   BOOKING_CHANGE_PROMPT,
   BOOKING_INVALID,
   BOOKING_SLOTS,
+  BOOKING_TIME_NOTE,
   bookingDone,
   bookingPrompt,
   nextBookingStep,
   startBooking,
   validateSlot,
 } from "./flows/booking-request.ts";
-import { checkGrounding, clinicalOutputCheck, clinicalPrecheck, isAffirmation, yesNo } from "./guardrails.ts";
+import {
+  asksForFixedTime,
+  checkGrounding,
+  clinicalOutputCheck,
+  clinicalPrecheck,
+  isAffirmation,
+  isGreeting,
+  yesNo,
+} from "./guardrails.ts";
 import * as T from "./templates.ts";
 import type {
   ExecutorDeps,
@@ -28,6 +37,8 @@ type Emit = (event: ExecutorEvent) => void;
 
 /** Once the top chunk clears the threshold, nearby chunks are also given to compose as context. */
 const CONTEXT_MARGIN = 0.1;
+/** Queries this short that compose cannot answer are treated as a topic, not a question. */
+const TOPIC_MAX_WORDS = 3;
 
 class ReplyWriter {
   readonly segments: Segment[] = [];
@@ -184,6 +195,7 @@ export async function runExecutor(ctx: TurnContext, deps: ExecutorDeps, emit: Em
   let commands: Command[] = [];
   let handoverTrigger: "precheck" | "planner" | "visitor_button" = "planner";
   const bookingStep = ctx.flow?.name === "booking_request" ? nextStepOf(ctx.flow) : null;
+  let timeNoteOnly = false;
 
   if (ctx.action === "handover") {
     commands = [{ cmd: "handover", reason: "visitor_request" }];
@@ -218,6 +230,15 @@ export async function runExecutor(ctx: TurnContext, deps: ExecutorDeps, emit: Em
       trace.plannerSkipped = "affirmation";
       out.template("acknowledge", T.ACKNOWLEDGE);
       return finish();
+    } else if (!ctx.flow && isGreeting(text)) {
+      result.act = "acknowledged";
+      trace.plannerSkipped = "greeting";
+      out.template("acknowledge", T.GREET_BACK, [], T.GREET_OPTIONS);
+      return finish();
+    } else if (bookingStep && bookingStep !== "done" && asksForFixedTime(text)) {
+      timeNoteOnly = true;
+      trace.plannerSkipped = "booking_time_note";
+      out.template("flow", BOOKING_TIME_NOTE);
     } else {
       try {
         const planned = await deps.plan(ctx);
@@ -238,7 +259,13 @@ export async function runExecutor(ctx: TurnContext, deps: ExecutorDeps, emit: Em
   trace.rejected.push(...dropped);
   commands = kept;
 
-  if (commands.length === 0 && bookingStep && bookingStep !== "done" && bookingStep !== "change" && text) {
+  if (ctx.lastBotAct === "clarify" && text && commands.length > 0 && commands.every((c) => c.cmd === "clarify")) {
+    trace.rejected.push(...commands.map((c) => ({ raw: c, error: "clarify straight after clarify" })));
+    commands = [{ cmd: "answer_from_knowledge", query: text }];
+    trace.guardrails.push({ rule: "no_double_clarify", result: "hit", detail: "answered the chosen option instead" });
+  }
+
+  if (!timeNoteOnly && commands.length === 0 && bookingStep && bookingStep !== "done" && bookingStep !== "change" && text) {
     const value = bookingStep === "confirm" ? yesNo(text) : text;
     if (value) {
       commands = [{ cmd: "set_slot", slot: bookingStep, value }];
@@ -427,6 +454,13 @@ export async function runExecutor(ctx: TurnContext, deps: ExecutorDeps, emit: Em
       trace.guardrails.push({ rule: "grounding", result: blocked ? "dropped" : "pass", detail: `${emitted} sentence(s) served` });
       return;
     }
+    const topics = blocked === 0 ? topicOptions(query, chunks, threshold) : [];
+    if (topics.length >= 2) {
+      trace.guardrails.push({ rule: "topic_menu", result: "hit", detail: `${query}: ${topics.join(" · ")}` });
+      if (result.act === "answered") result.act = "clarify";
+      out.template("clarify", T.TOPIC_LEAD, [], topics);
+      return;
+    }
     result.fallbacks += 1;
     if (blocked > 0) {
       trace.guardrails.push({ rule: "grounding", result: "blocked", detail: `all ${blocked} sentence(s) failed checks` });
@@ -437,6 +471,19 @@ export async function runExecutor(ctx: TurnContext, deps: ExecutorDeps, emit: Em
     if (noAnswer) trace.guardrails.push({ rule: "compose_no_answer", result: "hit", detail: query });
     out.template("fallback", T.dontKnow(practice));
   }
+}
+
+/** Section headings of the best-matching page, offered when a short query names a topic rather than a question. */
+function topicOptions(query: string, chunks: ScoredChunk[], threshold: number): string[] {
+  const top = chunks[0];
+  if (!top || query.trim().split(/\s+/).length > TOPIC_MAX_WORDS) return [];
+  const headings: string[] = [];
+  for (const c of chunks) {
+    if (c.page !== top.page || c.score < threshold - CONTEXT_MARGIN) continue;
+    if (c.heading === c.page || /[\d£]/.test(c.heading) || headings.includes(c.heading)) continue;
+    headings.push(c.heading);
+  }
+  return headings.slice(0, 4);
 }
 
 function nextStepOf(flow: FlowState) {
