@@ -8,7 +8,7 @@ import {
   turns,
   type FlowState,
 } from "@dental-bot/db";
-import { llmMode, type LlmMode } from "../config.ts";
+import { llmMode, maxTurnCostUsd, type LlmMode } from "../config.ts";
 import { confirmedOutcome } from "../outcomes.ts";
 import { detokenise } from "../pii/detect.ts";
 import { tokeniseForConversation, vaultValues } from "../pii/vault.ts";
@@ -39,7 +39,7 @@ const RESUME_WITHIN_MS = 24 * 60 * 60 * 1000;
 
 export function depsFor(mode: LlmMode, booking: BookingSystem | null = null): ExecutorDeps {
   return mode === "live"
-    ? { plan: livePlan, retrieve: (q, b) => searchChunks(q, b), compose: liveCompose, booking }
+    ? { plan: livePlan, retrieve: (q, b) => searchChunks(q, b), compose: liveCompose, booking, maxTurnCostUsd: maxTurnCostUsd() }
     : { plan: offlinePlan, retrieve: (q, b) => searchChunks(q, b), compose: (q, c, _b, ctx) => offlineCompose(q, c, ctx), booking };
 }
 

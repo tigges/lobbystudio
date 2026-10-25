@@ -7,9 +7,9 @@ import type { ScoredChunk } from "../runtime/types.ts";
 import { embed } from "../retrieval/embed.ts";
 import type { Pack } from "../packs/types.ts";
 
-/** Where a learned answer is cited from; the widget shows it as the team's answer rather than a page link. */
-export const LEARNED_SLUG = "learned";
-export const LEARNED_PAGE = "Answered by our team";
+import { LEARNED_PAGE, LEARNED_SLUG } from "../runtime/templates.ts";
+
+export { LEARNED_PAGE, LEARNED_SLUG };
 
 /**
  * A learned answer is only served for nearly the same question: paraphrases score 0.86 and up, while

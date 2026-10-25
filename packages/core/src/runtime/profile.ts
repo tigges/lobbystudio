@@ -26,7 +26,7 @@ export function profileLine(profile: Profile, def: BookingDef): string {
     .join("; ");
 }
 
-const REFERS_BACK = /\b(it|that|this|one|them|those)\b/i;
+export const REFERS_BACK = /\b(it|that|this|one|them|those)\b/i;
 const ASKS_PRICE = /\b(how much|cost\w*|price\w*|charge)\b/i;
 
 /**
