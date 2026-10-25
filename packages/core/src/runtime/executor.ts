@@ -44,7 +44,7 @@ const CONTEXT_MARGIN = 0.1;
 const TOPIC_MAX_WORDS = 3;
 /** Questions that suggest the visitor is planning a visit, so a booking offer after the first answer is welcome. */
 const VISIT_INTENT =
-  /\b(?:new patients?|regist\w*|join|taking on|accepting|how much|cost\w*|price\w*|fees?|park\w*|step-?free|wheelchair|access\w*|get there|find you|directions|first visit)\b/i;
+  /\b(?:new (?:\w+ )?patients?|regist\w*|join|taking on|accepting|how much|cost\w*|price\w*|fees?|park\w*|step-?free|wheelchair|access\w*|get there|find you|directions|first visit)\b/i;
 const OFFER_DECLINE = /^(?:not right now|not now|not yet|maybe later|no(?:,? thanks?(?: you)?)?|i'?m (?:ok|fine|good)(?:,? thanks?)?)[.! ]*$/i;
 
 class ReplyWriter {

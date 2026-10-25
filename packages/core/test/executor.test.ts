@@ -360,6 +360,9 @@ describe("booking offer", () => {
     expect(r.segments[1]!.options).toEqual(["Book an appointment", "Not right now"]);
     expect(r.segments[0]!.options).toEqual([]);
 
+    const nhs = await runExecutor(ctx({ visitorText: "Do you take new NHS patients?" }), parking().deps);
+    expect(nhs.segments.at(-1)!.kind).toBe("suggest");
+
     const again = await runExecutor(ctx({ visitorText: "Is there parking near the practice?", bookingOffered: true }), parking().deps);
     expect(again.segments.map((s) => s.kind)).toEqual(["answer"]);
   });
