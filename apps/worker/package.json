@@ -1,0 +1,14 @@
+{
+  "name": "@dental-bot/worker",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "tsx src/index.ts",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@dental-bot/core": "workspace:*",
+    "@dental-bot/db": "workspace:*"
+  }
+}

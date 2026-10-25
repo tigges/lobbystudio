@@ -1,0 +1,19 @@
+{
+  "name": "@dental-bot/core",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./runtime": "./src/runtime/index.ts"
+  },
+  "scripts": {
+    "seed": "tsx src/seed/seed.ts",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@dental-bot/db": "workspace:*",
+    "@huggingface/transformers": "4.3.1",
+    "drizzle-orm": "0.45.4",
+    "zod": "4.6.7"
+  }
+}

@@ -1,0 +1,90 @@
+@import "tailwindcss";
+
+@theme {
+  --color-harbour-50: #f0f7f7;
+  --color-harbour-100: #d9ecec;
+  --color-harbour-600: #0f6e6e;
+  --color-harbour-700: #0b5858;
+  --color-harbour-900: #0b2b33;
+  --color-sand-50: #fbf8f3;
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+.content {
+  color: var(--color-slate-700);
+  line-height: 1.7;
+}
+.content > p:first-child {
+  font-size: 1.125rem;
+  color: var(--color-slate-600);
+}
+.content h2 {
+  margin-top: 2.5rem;
+  margin-bottom: 0.75rem;
+  font-size: 1.375rem;
+  font-weight: 650;
+  color: var(--color-harbour-900);
+  scroll-margin-top: 6rem;
+}
+.content h2:target {
+  background: linear-gradient(transparent 60%, var(--color-harbour-100) 60%);
+}
+.content h3 {
+  margin-top: 1.5rem;
+  margin-bottom: 0.5rem;
+  font-weight: 600;
+  color: var(--color-harbour-900);
+}
+.content p,
+.content ul,
+.content ol,
+.content table {
+  margin-bottom: 1rem;
+}
+.content ul {
+  list-style: disc;
+  padding-left: 1.25rem;
+}
+.content ol {
+  list-style: decimal;
+  padding-left: 1.25rem;
+}
+.content li {
+  margin-bottom: 0.35rem;
+}
+.content strong {
+  color: var(--color-slate-900);
+  font-weight: 600;
+}
+.content a {
+  color: var(--color-harbour-600);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.content table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.95rem;
+  background: white;
+  border-radius: 0.75rem;
+  overflow: hidden;
+  box-shadow: 0 0 0 1px var(--color-slate-200);
+}
+.content th {
+  text-align: left;
+  font-weight: 600;
+  color: var(--color-harbour-900);
+  background: var(--color-harbour-50);
+}
+.content th,
+.content td {
+  padding: 0.6rem 0.9rem;
+  border-bottom: 1px solid var(--color-slate-100);
+}
+.content tr:last-child td {
+  border-bottom: 0;
+}
