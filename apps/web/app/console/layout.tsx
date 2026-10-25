@@ -1,6 +1,8 @@
 import Link from "next/link";
+import { BusinessSwitcher } from "@/app/business-switcher";
+import { brandFor, paletteStyle } from "@/lib/brands";
 import { buildLabel } from "@/lib/build";
-import { SITE_TENANT } from "@/lib/site";
+import { currentTenant, switcherOptions } from "@/lib/business";
 import { TestChatToggle } from "./ui";
 
 export const dynamic = "force-dynamic";
@@ -9,7 +11,7 @@ export const metadata = { title: "Console" };
 
 const NAV = [
   {
-    group: "Practice team",
+    group: "Team",
     links: [
       { href: "/console/handovers", label: "Handovers" },
       { href: "/console/help", label: "Help" },
@@ -24,14 +26,17 @@ const NAV = [
   },
 ];
 
-export default function ConsoleLayout({ children }: { children: React.ReactNode }) {
+export default async function ConsoleLayout({ children }: { children: React.ReactNode }) {
+  const tenant = await currentTenant();
+  const brand = brandFor(tenant);
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-slate-50" style={paletteStyle(brand)}>
       <header className="border-b border-slate-200 bg-white">
-        <div className="mx-auto flex max-w-6xl items-center gap-6 px-5 py-3">
+        <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-6 gap-y-2 px-5 py-3">
           <Link href="/console" className="font-semibold text-harbour-900">
-            dental-bot <span className="font-normal text-slate-400">console</span>
+            lobbystudio <span className="font-normal text-slate-400">console</span>
           </Link>
+          <BusinessSwitcher current={tenant} options={switcherOptions()} tone="console" />
           <nav className="flex items-center gap-4 text-sm">
             {NAV.map((g) => (
               <div
@@ -51,7 +56,7 @@ export default function ConsoleLayout({ children }: { children: React.ReactNode 
           </nav>
           <div className="ml-auto flex items-center gap-3">
             <span className="text-xs text-slate-400">{buildLabel()}</span>
-            <TestChatToggle tenant={SITE_TENANT} />
+            <TestChatToggle tenant={tenant} accent={brand.accent} />
             <Link href="/" className="text-sm text-slate-500 hover:text-slate-800">
               View site
             </Link>

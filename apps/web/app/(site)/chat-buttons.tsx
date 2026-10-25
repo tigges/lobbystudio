@@ -6,7 +6,7 @@ declare global {
   }
 }
 
-export function ChatButtons() {
+export function ChatButtons({ note }: { note: string }) {
   return (
     <div className="mb-8 flex flex-wrap items-center gap-3 rounded-2xl bg-harbour-50 p-4 ring-1 ring-harbour-100">
       <button
@@ -16,7 +16,7 @@ export function ChatButtons() {
       >
         Book an appointment in the chat
       </button>
-      <span className="text-sm text-slate-600">The assistant takes your details and the team calls you back to confirm.</span>
+      <span className="text-sm text-slate-600">{note}</span>
     </div>
   );
 }

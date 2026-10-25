@@ -18,8 +18,12 @@ type Session = {
   status: string;
   booking?: boolean;
   practice: { name: string; phone: string };
+  /** How this business names the assistant and its team. */
+  labels?: { assistant: string; talk: string; footer: string };
   messages: Message[];
 };
+
+const DEFAULT_LABELS = { assistant: "Assistant", talk: "Talk to the team", footer: "Demo · not medical advice" };
 
 const script = document.currentScript as HTMLScriptElement | null;
 const BASE = script ? new URL(script.src).origin : location.origin;
@@ -81,6 +85,9 @@ class Widget {
   private bookBtn!: HTMLButtonElement;
   private versionEl!: HTMLSpanElement;
   private titleEl!: HTMLElement;
+  private subtitleEl!: HTMLElement;
+  private talkBtn!: HTMLButtonElement;
+  private footerEl!: HTMLElement;
   private launcher!: HTMLButtonElement;
   private stars!: HTMLDivElement;
   private session: Session | null = null;
@@ -109,14 +116,15 @@ class Widget {
   }
 
   private buildPanel() {
-    this.panel = el("div", { class: "panel", role: "dialog", "aria-label": "Chat with the practice" }) as HTMLDivElement;
+    this.panel = el("div", { class: "panel", role: "dialog", "aria-label": "Chat with us" }) as HTMLDivElement;
     this.panel.hidden = true;
 
     const header = el("div", { class: "header" });
     const avatar = el("div", { class: "avatar" }, "");
     const title = el("div", { class: "title" });
     this.titleEl = el("strong", {}, "Chat");
-    title.append(this.titleEl, el("span", {}, "Practice assistant"));
+    this.subtitleEl = el("span", {}, DEFAULT_LABELS.assistant);
+    title.append(this.titleEl, this.subtitleEl);
     this.versionEl = el("span", { class: "version", title: "Serving version" }, "v–");
     const fresh = el("button", { class: "text-btn", title: "Start a new conversation" }, "New chat");
     fresh.addEventListener("click", () => void this.newChat());
@@ -133,7 +141,8 @@ class Widget {
     this.bookBtn = book as HTMLButtonElement;
     this.exits = exits as HTMLDivElement;
     book.addEventListener("click", () => void this.send({ action: "book" }));
-    const talk = el("button", { class: "chip" }, "Talk to the practice");
+    const talk = el("button", { class: "chip" }, DEFAULT_LABELS.talk);
+    this.talkBtn = talk as HTMLButtonElement;
     talk.addEventListener("click", () => void this.send({ action: "handover" }));
     exits.append(book, talk);
 
@@ -157,7 +166,8 @@ class Widget {
     });
 
     const footer = el("div", { class: "footer" });
-    footer.append(el("span", {}, "Demo practice · not medical advice"));
+    this.footerEl = el("span", {}, DEFAULT_LABELS.footer);
+    footer.append(this.footerEl);
     this.stars = el("div", { class: "stars", "aria-label": "Rate this chat" }) as HTMLDivElement;
     this.stars.append(el("span", {}, "Rate chat"));
     for (let i = 1; i <= 5; i++) {
@@ -211,11 +221,16 @@ class Widget {
         conversationId: localStorage.getItem(`${STORE}:conversation`),
       });
     } catch {
-      this.renderMessage({ role: "system", kind: "error", text: "The chat is unavailable right now. Please phone the practice.", sources: [], options: [], feedback: null, authorName: null });
+      this.renderMessage({ role: "system", kind: "error", text: "The chat is unavailable right now. Please phone us.", sources: [], options: [], feedback: null, authorName: null });
       return;
     }
     localStorage.setItem(`${STORE}:conversation`, this.session.conversationId);
     this.titleEl.textContent = this.session.practice.name;
+    const labels = this.labels();
+    this.subtitleEl.textContent = labels.assistant;
+    this.talkBtn.textContent = labels.talk;
+    this.footerEl.textContent = labels.footer;
+    this.panel.setAttribute("aria-label", `Chat with ${this.session.practice.name}`);
     (this.root.querySelector(".avatar") as HTMLElement).textContent = this.session.practice.name
       .split(/\s+/)
       .map((w) => w[0])
@@ -226,6 +241,10 @@ class Widget {
     this.log.replaceChildren();
     for (const m of this.session.messages) this.renderMessage(m);
     this.setStatus(this.session.status, this.session.booking);
+  }
+
+  private labels() {
+    return this.session?.labels ?? DEFAULT_LABELS;
   }
 
   private setStatus(status: string, booking?: boolean) {
@@ -265,7 +284,7 @@ class Widget {
     // Quick replies only make sense as answers to the latest message; older ones would send stale answers.
     this.log.querySelectorAll(".options").forEach((o) => o.remove());
     const row = el("div", { class: `row ${m.role}` }) as HTMLDivElement;
-    if (m.role === "staff") row.append(el("div", { class: "author" }, `${m.authorName ?? "Practice team"} · ${this.session?.practice.name ?? ""}`));
+    if (m.role === "staff") row.append(el("div", { class: "author" }, `${m.authorName ?? "Team"} · ${this.session?.practice.name ?? ""}`));
     const bubble = el("div", { class: "bubble" }, m.text) as HTMLDivElement;
     row.append(bubble);
     this.log.append(row);
@@ -338,7 +357,7 @@ class Widget {
     if (!this.session) await this.start();
     if (!this.session || this.busy) return;
     this.setBusy(true);
-    const label = input.text ?? (input.action === "book" ? "Book an appointment" : "Talk to the practice");
+    const label = input.text ?? (input.action === "book" ? "Book an appointment" : this.labels().talk);
     this.renderMessage({ role: "visitor", kind: "text", text: label, sources: [], options: [], feedback: null, authorName: null });
 
     const segments = new Map<string, { row: HTMLDivElement; bubble: HTMLDivElement; message: Message }>();

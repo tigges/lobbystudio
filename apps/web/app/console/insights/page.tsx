@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { groupTurns, insights, labelTitle, SLOW_TURN_MS, TURN_LABELS } from "@dental-bot/core";
 import { label, OUTCOME_STYLE, when } from "@/lib/format";
-import { SITE_TENANT } from "@/lib/site";
+import { currentTenant } from "@/lib/business";
 import { ActionedForm, LabelChip, LabelForm } from "../labels";
 import { AdminNote } from "../ui";
 
@@ -109,9 +109,10 @@ export default async function InsightsPage({ searchParams }: { searchParams: Pro
   const params = await searchParams;
   const days = params.days ?? "30";
   const filter = { sinceDays: days === "all" ? null : Number(days), version: params.version ? Number(params.version) : null };
-  const data = await insights(SITE_TENANT, filter);
+  const tenant = await currentTenant();
+  const data = await insights(tenant, filter);
   const selected = params.group ?? null;
-  const list = selected ? await groupTurns(SITE_TENANT, selected, filter) : [];
+  const list = selected ? await groupTurns(tenant, selected, filter) : [];
   const { totals } = data;
   const t = totals.turns;
   const labelled = data.labels.reduce((s, l) => s + l.turns, 0);

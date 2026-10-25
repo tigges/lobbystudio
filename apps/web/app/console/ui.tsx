@@ -10,7 +10,7 @@ const TEST_CHAT_KEY = "console:test-chat";
  * Loads the visitor widget into the console so staff can play the visitor and the team side by side.
  * It shares the site's stored conversation, since both are on the same origin.
  */
-export function TestChatToggle({ tenant }: { tenant: string }) {
+export function TestChatToggle({ tenant, accent }: { tenant: string; accent: string }) {
   const [on, setOn] = useState(false);
 
   useEffect(() => {
@@ -20,10 +20,10 @@ export function TestChatToggle({ tenant }: { tenant: string }) {
     const s = document.createElement("script");
     s.src = "/widget.js";
     s.dataset.tenant = tenant;
-    s.dataset.accent = "#0f6e6e";
+    s.dataset.accent = accent;
     s.dataset.consoleWidget = "1";
     document.body.appendChild(s);
-  }, [tenant]);
+  }, [tenant, accent]);
 
   const toggle = () => {
     if (on) localStorage.removeItem(TEST_CHAT_KEY);

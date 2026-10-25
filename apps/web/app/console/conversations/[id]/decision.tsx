@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { type conversationDetail, DECIDED_BY, type FlowRun, stepTitle } from "@dental-bot/core";
+import { type BookingDef, type conversationDetail, DECIDED_BY, type FlowRun, stepTitle } from "@dental-bot/core";
 import { label } from "@/lib/format";
 
 type Detail = NonNullable<Awaited<ReturnType<typeof conversationDetail>>>;
@@ -25,14 +25,14 @@ function Stage({ title, tone = "plain", children }: { title: string; tone?: keyo
   );
 }
 
-function commandText(c: { cmd: string; [key: string]: unknown }) {
+function commandText(c: { cmd: string; [key: string]: unknown }, def: BookingDef) {
   switch (c.cmd) {
     case "answer_from_knowledge":
       return `answer “${c.query}”`;
     case "start_flow":
       return `start ${label(String(c.flow))}`;
     case "set_slot":
-      return `${stepTitle(String(c.slot))} = ${c.value}`;
+      return `${stepTitle(String(c.slot), def)} = ${c.value}`;
     case "clarify":
       return `clarify: ${(c.options as string[]).join(" / ")}`;
     case "handover":
@@ -44,12 +44,12 @@ function commandText(c: { cmd: string; [key: string]: unknown }) {
   }
 }
 
-function flowText(f: LedgerTurn["flowBefore"]) {
-  return f ? `${f.name === "booking_request" ? "Booking" : "Handover"} · ${stepTitle(f.step)}` : "no flow";
+function flowText(f: LedgerTurn["flowBefore"], def: BookingDef) {
+  return f ? `${f.name === "booking_request" ? "Booking" : "Handover"} · ${stepTitle(f.step, def)}` : "no flow";
 }
 
 /** Left to right: what each stage of the executor did with this turn. */
-export function DecisionPath({ turn: t, replies }: { turn: LedgerTurn; replies: Reply[] }) {
+export function DecisionPath({ turn: t, replies, def }: { turn: LedgerTurn; replies: Reply[]; def: BookingDef }) {
   const safety = t.guardrails.filter((g) => SAFETY_RULES.has(g.rule) && g.result !== "pass");
   const checks = t.guardrails.filter((g) => !SAFETY_RULES.has(g.rule));
   const fired = checks.filter((g) => g.result !== "pass");
@@ -105,7 +105,7 @@ export function DecisionPath({ turn: t, replies }: { turn: LedgerTurn; replies: 
         {t.commands.length === 0 && <p className="text-slate-400">none, the rule wrote the reply</p>}
         {t.commands.map((c, i) => (
           <p key={i} className="font-mono text-[11px]">
-            {commandText(c)}
+            {commandText(c, def)}
           </p>
         ))}
         {t.rejectedCommands.length > 0 && <p className="text-amber-800">{t.rejectedCommands.length} rejected, see raw details</p>}
@@ -172,7 +172,7 @@ export function DecisionPath({ turn: t, replies }: { turn: LedgerTurn; replies: 
           </div>
         ))}
         <p className="text-slate-500">
-          {flowText(t.flowBefore)} → {flowText(t.flowAfter)}
+          {flowText(t.flowBefore, def)} → {flowText(t.flowAfter, def)}
           {compose ? ` · written by ${compose.model}` : ""}
         </p>
       </Stage>

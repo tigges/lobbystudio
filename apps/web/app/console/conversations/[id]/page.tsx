@@ -1,9 +1,9 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { conversationDetail, flowRuns, listConversations, REVIEW_STATES, reviewState } from "@dental-bot/core";
+import { businessById, conversationDetail, flowRuns, listConversations, packFor, REVIEW_STATES, reviewState } from "@dental-bot/core";
 import { reviewedAction } from "../../actions";
 import { label, OUTCOME_STYLE, when } from "@/lib/format";
-import { SITE_TENANT } from "@/lib/site";
+import { currentTenant } from "@/lib/business";
 import { ActionedForm, LabelChip, LabelForm } from "../../labels";
 import { Transcript } from "../../transcript";
 import { AdminNote } from "../../ui";
@@ -36,10 +36,12 @@ export default async function ConversationPage({
   const { id } = await params;
   const focus = (await searchParams).turn;
   if (!UUID_RE.test(id)) notFound();
-  const detail = await conversationDetail(SITE_TENANT, id);
+  const tenant = await currentTenant();
+  const detail = await conversationDetail(tenant, id);
   if (!detail) notFound();
   const { conversation: c, messages, turns, bookings, versionNumber, labels, replies } = detail;
-  const runs = flowRuns(turns, messages.some((m) => m.role === "staff"));
+  const def = packFor(businessById(tenant)?.vertical).booking;
+  const runs = flowRuns(turns, messages.some((m) => m.role === "staff"), def);
   const path = `/console/conversations/${c.id}`;
   const labelled = turns.filter((t) => labels.has(t.id)).length;
   const totalCost = turns.reduce((s, t) => s + Number(t.costUsd), 0);
@@ -50,7 +52,7 @@ export default async function ConversationPage({
     openLabels: labelRows.filter((l) => l.label !== "good" && !l.actionedAt).length,
     actionedLabels: labelRows.filter((l) => l.actionedAt).length,
   });
-  const next = (await listConversations(SITE_TENANT, 300)).find((r) => r.id !== c.id && reviewState(r) === "to_review");
+  const next = (await listConversations(tenant, 300)).find((r) => r.id !== c.id && reviewState(r) === "to_review");
 
   return (
     <div className="space-y-6">
@@ -152,7 +154,7 @@ export default async function ConversationPage({
                 )}
               </div>
               <div className="border-t border-slate-100 px-4 py-3">
-                <DecisionPath turn={t} replies={replies.get(t.id) ?? []} />
+                <DecisionPath turn={t} replies={replies.get(t.id) ?? []} def={def} />
               </div>
               <details className="border-t border-slate-100">
                 <summary className="cursor-pointer px-4 py-2 text-xs text-slate-500 hover:text-slate-800">Raw details</summary>

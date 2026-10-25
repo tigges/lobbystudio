@@ -3,15 +3,15 @@
 import { revalidatePath } from "next/cache";
 import { clearTurnLabel, releaseToBot, setConversationReviewed, setHandoverContact, setLabelsActioned, setTurnLabel, staffReply } from "@dental-bot/core";
 import { buildInfo } from "@/lib/build";
-import { SITE_TENANT } from "@/lib/site";
+import { currentTenant } from "@/lib/business";
 
 export async function replyAction(form: FormData) {
   const conversationId = String(form.get("conversationId"));
   const text = String(form.get("text") ?? "").trim();
-  const author = String(form.get("author") ?? "").trim() || "Practice team";
+  const author = String(form.get("author") ?? "").trim() || "Team";
   if (!text) return;
   await staffReply({
-    tenantId: SITE_TENANT,
+    tenantId: await currentTenant(),
     conversationId,
     text,
     author,
@@ -23,7 +23,7 @@ export async function replyAction(form: FormData) {
 export async function contactAction(form: FormData) {
   const conversationId = String(form.get("conversationId"));
   await setHandoverContact({
-    tenantId: SITE_TENANT,
+    tenantId: await currentTenant(),
     conversationId,
     name: String(form.get("name") ?? ""),
     phone: String(form.get("phone") ?? ""),
@@ -36,20 +36,20 @@ export async function labelTurnAction(form: FormData) {
   const label = String(form.get("label") ?? "");
   const path = String(form.get("path") ?? "/console/insights");
   if (!Number.isInteger(turnId)) return;
-  if (form.get("clear") || !label) await clearTurnLabel({ tenantId: SITE_TENANT, turnId });
-  else await setTurnLabel({ tenantId: SITE_TENANT, turnId, label, note: String(form.get("note") ?? "") });
+  if (form.get("clear") || !label) await clearTurnLabel({ tenantId: await currentTenant(), turnId });
+  else await setTurnLabel({ tenantId: await currentTenant(), turnId, label, note: String(form.get("note") ?? "") });
   revalidatePath(path.split("?")[0]!);
 }
 
 export async function releaseAction(form: FormData) {
   const conversationId = String(form.get("conversationId"));
-  await releaseToBot({ tenantId: SITE_TENANT, conversationId });
+  await releaseToBot({ tenantId: await currentTenant(), conversationId });
   revalidatePath(`/console/handovers/${conversationId}`);
 }
 
 export async function reviewedAction(form: FormData) {
   const conversationId = String(form.get("conversationId"));
-  await setConversationReviewed({ tenantId: SITE_TENANT, conversationId, reviewed: form.get("reviewed") === "1" });
+  await setConversationReviewed({ tenantId: await currentTenant(), conversationId, reviewed: form.get("reviewed") === "1" });
   revalidatePath(`/console/conversations/${conversationId}`);
   revalidatePath("/console/conversations");
 }
@@ -60,7 +60,7 @@ export async function actionedAction(form: FormData) {
     .map(Number)
     .filter(Number.isInteger);
   const path = String(form.get("path") ?? "/console/insights");
-  await setLabelsActioned({ tenantId: SITE_TENANT, turnIds, actioned: form.get("actioned") === "1", build: buildInfo().commit });
+  await setLabelsActioned({ tenantId: await currentTenant(), turnIds, actioned: form.get("actioned") === "1", build: buildInfo().commit });
   revalidatePath(path.split("?")[0]!);
   revalidatePath("/console/conversations");
 }

@@ -29,6 +29,7 @@ const STEPS = [
     body: [
       "Handovers is the console's start page. Chats waiting for you are listed first: “visitor replied” means the visitor has answered you, and “open” means nobody has replied yet. The coloured label is the reason: red means pain or an emergency, so answer those first.",
       "Booking requests sit underneath. Each one is a call-back request, not a confirmed appointment: phone the visitor, agree a time, and book it in your practice system.",
+      "For a business that books online, such as the demo salon, the list is called Bookings. “Booked” ones are already in the diary, with the booking system's reference; “Call back” ones are visitors for whom no offered time suited or the booking system couldn't be reached, so phone them as above.",
       "The page refreshes itself every few seconds, so you can leave it open.",
     ],
   },

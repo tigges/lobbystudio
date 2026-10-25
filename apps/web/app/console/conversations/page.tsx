@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { labelTitle, listConversations, OUTCOMES, REVIEW_STATES, reviewState } from "@dental-bot/core";
 import { label, OUTCOME_STYLE, when } from "@/lib/format";
-import { SITE_TENANT } from "@/lib/site";
+import { currentTenant } from "@/lib/business";
 import { LabelChip } from "../labels";
 import { AdminNote } from "../ui";
 
@@ -45,7 +45,7 @@ function Chip({ on, to, children }: { on: boolean; to: string; children: React.R
 
 export default async function ConversationsPage({ searchParams }: { searchParams: Promise<Params> }) {
   const params = await searchParams;
-  const all = await listConversations(SITE_TENANT, 300);
+  const all = await listConversations(await currentTenant(), 300);
   const versions = [...new Set(all.map((r) => r.versionNumber))].sort((a, b) => b - a);
 
   const had = HAD.find((h) => h.key === params.had);

@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { conversationDetail } from "@dental-bot/core";
 import { label, REASON_STYLE, when } from "@/lib/format";
-import { SITE_TENANT } from "@/lib/site";
+import { currentTenant } from "@/lib/business";
 import { contactAction, releaseAction, replyAction } from "../../actions";
 import { Transcript } from "../../transcript";
 import { AutoRefresh } from "../../ui";
@@ -14,7 +14,7 @@ const UUID_RE = /^[0-9a-f-]{36}$/i;
 export default async function HandoverPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   if (!UUID_RE.test(id)) notFound();
-  const detail = await conversationDetail(SITE_TENANT, id);
+  const detail = await conversationDetail(await currentTenant(), id);
   if (!detail) notFound();
   const { conversation, messages, handovers } = detail;
   const handover = handovers.at(-1);

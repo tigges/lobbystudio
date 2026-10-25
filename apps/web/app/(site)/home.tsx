@@ -1,3 +1,4 @@
+import type { Brand } from "@/lib/brands";
 import { HeroActions } from "./chat-buttons";
 
 export type TeamMember = { name: string; role: string };
@@ -13,21 +14,17 @@ export function withoutTeamSection(md: string): string {
   return md.replace(/^## Our team\s*\n[\s\S]*?(?=^## |(?![\s\S]))/m, "");
 }
 
-const HIGHLIGHTS = ["New NHS patients under 18 welcome", "Open until 8pm on Tuesdays and Thursdays", "Emergency appointments every weekday", "Step-free access"];
-
-export function Hero({ name, phone }: { name: string; phone: string }) {
+export function Hero({ name, phone, brand }: { name: string; phone: string; brand: Brand }) {
   return (
     <section className="relative left-1/2 w-screen -translate-x-1/2 bg-gradient-to-b from-harbour-50 to-white">
       <div className="mx-auto grid max-w-5xl items-center gap-8 px-5 py-12 md:grid-cols-[1.1fr_1fr] md:py-16">
         <div>
-          <p className="mb-3 text-sm font-medium uppercase tracking-wider text-harbour-600">Family dentist in Rotherhithe</p>
+          <p className="mb-3 text-sm font-medium uppercase tracking-wider text-harbour-600">{brand.kicker}</p>
           <h1 className="text-4xl font-bold tracking-tight text-harbour-900 sm:text-5xl">Welcome to {name}</h1>
-          <p className="mt-4 text-lg text-slate-600">
-            Friendly NHS and private dental care for the whole family, a short walk from Canada Water.
-          </p>
+          <p className="mt-4 text-lg text-slate-600">{brand.lead}</p>
           <HeroActions phone={phone} />
           <ul className="mt-6 grid gap-2 text-sm text-slate-700 sm:grid-cols-2">
-            {HIGHLIGHTS.map((h) => (
+            {brand.highlights.map((h) => (
               <li key={h} className="flex items-start gap-2">
                 <svg viewBox="0 0 20 20" className="mt-0.5 h-4 w-4 shrink-0 text-harbour-600" aria-hidden>
                   <path fill="currentColor" d="M8.2 13.6 4.6 10l-1.2 1.2 4.8 4.8 9-9-1.2-1.2z" />
@@ -37,7 +34,7 @@ export function Hero({ name, phone }: { name: string; phone: string }) {
             ))}
           </ul>
         </div>
-        <HeroPicture />
+        {brand.picture === "salon" ? <SalonPicture /> : <HeroPicture />}
       </div>
     </section>
   );
@@ -111,6 +108,63 @@ function HeroPicture() {
   );
 }
 
+/** The salon's shopfront in a mews: striped awning, mandarin sign, a chair and mirror in the window. */
+function SalonPicture() {
+  return (
+    <svg viewBox="0 0 480 360" role="img" aria-label="Illustration of the Mikan Hair Studio shopfront" className="w-full rounded-3xl shadow-sm ring-1 ring-harbour-100">
+      <defs>
+        <linearGradient id="salon-sky" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#fff1e0" />
+          <stop offset="1" stopColor="#fdf8ef" />
+        </linearGradient>
+      </defs>
+      <rect width="480" height="360" fill="url(#salon-sky)" />
+      <circle cx="400" cy="64" r="26" fill="#fbd38d" />
+      <path d="M48 84c14-10 32-10 44 0 8-8 26-8 32 4" fill="none" stroke="#fff" strokeWidth="10" strokeLinecap="round" />
+      {/* Brick mews */}
+      <rect x="60" y="70" width="360" height="236" rx="6" fill="#f3e2cf" />
+      {[96, 126, 156].map((y) => (
+        <path key={y} d={`M60 ${y}h360`} stroke="#e8cfb4" strokeWidth="2" />
+      ))}
+      {/* Sign */}
+      <rect x="150" y="80" width="180" height="34" rx="17" fill="#3b1d0a" />
+      <circle cx="176" cy="97" r="10" fill="#f28c28" />
+      <path d="M176 87c2-4 6-5 9-4-2 3-5 4-9 4z" fill="#4f9d5a" />
+      <text x="196" y="102" fontFamily="system-ui, sans-serif" fontSize="12" fontWeight="700" letterSpacing="2" fill="#fff6ed">
+        MIKAN HAIR
+      </text>
+      {/* Awning */}
+      <path d="M84 126h312l-14 34H98z" fill="#ffffff" />
+      {[0, 1, 2, 3, 4, 5].map((i) => (
+        <path key={i} d={`M${84 + i * 52} 126h26l-2 34h-26z`} fill="#c2570c" />
+      ))}
+      <path d="M98 160c8 8 18 8 26 0 8 8 18 8 26 0 8 8 18 8 26 0 8 8 18 8 26 0 8 8 18 8 26 0 8 8 18 8 26 0 8 8 18 8 26 0 8 8 18 8 26 0 8 8 18 8 26 0 8 8 18 8 26 0 8 8 18 8 26 0" fill="#c2570c" />
+      {/* Window */}
+      <rect x="104" y="176" width="190" height="112" rx="6" fill="#ffe4c7" stroke="#3b1d0a" strokeOpacity=".15" />
+      <rect x="196" y="188" width="72" height="88" rx="36" fill="#fff6ed" stroke="#9a4309" strokeOpacity=".35" strokeWidth="3" />
+      <g fill="#3b1d0a" fillOpacity=".8">
+        <rect x="132" y="236" width="44" height="12" rx="6" />
+        <rect x="128" y="206" width="12" height="42" rx="6" />
+        <rect x="150" y="248" width="8" height="24" />
+        <rect x="138" y="272" width="32" height="6" rx="3" />
+      </g>
+      {/* Door */}
+      <rect x="310" y="176" width="66" height="112" rx="6" fill="#9a4309" />
+      <rect x="320" y="188" width="46" height="54" rx="4" fill="#ffe4c7" />
+      <circle cx="364" cy="262" r="3" fill="#fbd38d" />
+      {/* Plant */}
+      <rect x="388" y="262" width="24" height="26" rx="4" fill="#c2570c" />
+      <circle cx="392" cy="252" r="12" fill="#4f9d5a" />
+      <circle cx="406" cy="246" r="12" fill="#5fae69" />
+      {/* Street */}
+      <rect x="0" y="288" width="480" height="72" fill="#e6d3bd" />
+      {[20, 120, 220, 320, 420].map((x) => (
+        <rect key={x} x={x} y="318" width="50" height="6" rx="3" fill="#fff6ed" fillOpacity=".7" />
+      ))}
+    </svg>
+  );
+}
+
 const AVATAR_TONES = [
   { bg: "#d9ecec", fg: "#0f6e6e" },
   { bg: "#fde9cf", fg: "#a35a12" },
@@ -142,15 +196,13 @@ function Avatar({ name, tone }: { name: string; tone: (typeof AVATAR_TONES)[numb
   );
 }
 
-export function Team({ members, registered }: { members: TeamMember[]; registered: boolean }) {
+export function Team({ members, note }: { members: TeamMember[]; note: string }) {
   if (members.length === 0) return null;
   return (
     <section id="our-team" className="relative left-1/2 w-screen -translate-x-1/2 scroll-mt-24 border-y border-slate-200/70 bg-white">
       <div className="mx-auto max-w-5xl px-5 py-12">
         <h2 className="text-2xl font-bold tracking-tight text-harbour-900">Meet the team</h2>
-        <p className="mt-1 text-slate-600">
-          The people you'll see when you visit.{registered ? " Our dentists are registered with the General Dental Council." : ""}
-        </p>
+        <p className="mt-1 text-slate-600">{note}</p>
         <ul className="mt-8 grid grid-cols-2 gap-3 sm:gap-5 lg:grid-cols-4">
           {members.map((m, i) => (
             <li key={m.name} className="flex flex-col items-center rounded-2xl bg-slate-50 p-5 text-center ring-1 ring-slate-200/70">

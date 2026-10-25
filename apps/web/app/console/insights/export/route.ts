@@ -1,6 +1,6 @@
 import { labelExport, labelTitle } from "@dental-bot/core";
 import { buildInfo } from "@/lib/build";
-import { SITE_TENANT } from "@/lib/site";
+import { currentTenant } from "@/lib/business";
 
 export const dynamic = "force-dynamic";
 
@@ -12,7 +12,8 @@ const cell = (v: unknown) => {
 };
 
 export async function GET(req: Request) {
-  const labels = await labelExport(SITE_TENANT);
+  const tenant = await currentTenant();
+  const labels = await labelExport(tenant);
   const exportedAt = new Date().toISOString();
   const name = `labels-${exportedAt.slice(0, 10)}`;
 
@@ -41,7 +42,7 @@ export async function GET(req: Request) {
     });
   }
 
-  const body = JSON.stringify({ exportedAt, build: buildInfo().commit, tenant: SITE_TENANT, count: labels.length, labels }, null, 2);
+  const body = JSON.stringify({ exportedAt, build: buildInfo().commit, tenant, count: labels.length, labels }, null, 2);
   return new Response(body, {
     headers: { "content-type": "application/json; charset=utf-8", "content-disposition": `attachment; filename="${name}.json"` },
   });
