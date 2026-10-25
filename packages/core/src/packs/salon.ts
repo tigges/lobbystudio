@@ -52,9 +52,7 @@ export const SALON_PACK: Pack = {
   kind: "a hair salon",
   place: "salon",
   labels: { assistant: "Salon assistant", talk: "Talk to the salon", footer: "Demo salon · fictional business" },
-  greeting: (b) =>
-    `Hi, I'm the ${b.name} assistant. I can help with prices, patch tests, opening hours and booking. ` +
-    `If you've had a reaction to a treatment, I'll pass you straight to the team.`,
+  greeting: (b) => `Hi, I'm the ${b.name} assistant. How can I help you today?`,
   cannotHandle(b, reason) {
     if (reason === "abusive") return "I can't help with that.";
     if (reason === "unsupported_request") return `I can't do that in the chat. The team can help on ${b.phone}.`;
@@ -72,7 +70,7 @@ export const SALON_PACK: Pack = {
     }
     if (reason === "clinical_advice") {
       return (
-        `I can't give medical advice in the chat, so I've passed your question to the salon team. ` +
+        `That's one for our team, as the answer depends on you, so I've passed your question on. ` +
         `They'll reply here during opening hours, or you can call us on ${b.phone}.`
       );
     }
@@ -103,6 +101,7 @@ export const SALON_PACK: Pack = {
     slotPrompt: (slots) =>
       `Here are the next free times ${stylistPhrase(slots.stylist)}` +
       `${slots.patch_test === "needed" ? ", from 48 hours ahead to leave time for your patch test" : ""}. Which suits you?`,
+    moreTimes: "No problem. Would you like to see more times, or try a different day?",
     noTimes: "I couldn't find a free time that matches online, so I'll pass your request to the team and they'll call you to find one.",
     slotInvalid: "Sorry, which of these times would you like? Or choose \"None of these suit me\" and the team will call you.",
     booked: (slots, b) =>
@@ -112,6 +111,11 @@ export const SALON_PACK: Pack = {
     failed: (slots) =>
       `Sorry, I couldn't book that time just now, so I've sent your request to the team instead. ` +
       `They'll call you on ${slots.phone} to book you in. Is there anything else I can help with before your visit?`,
+  },
+  enquiry: {
+    pattern: /\b(?:wedding|bridal|brides?|bridesmaids?|hen (?:do|party)|prom|special occasion|event|photo ?shoot|group booking|party)\b/i,
+    message: (b) =>
+      `That's one for the team, so I've passed your question on. They'll reply here during opening hours, or you can call us on ${b.phone}.`,
   },
   handoverSources: { slug: "patch-tests", urgent: /^(if-you-have-a-reaction|call-999)/, clinical: /^what-we-can/ },
 };
