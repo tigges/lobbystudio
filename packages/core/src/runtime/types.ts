@@ -48,6 +48,10 @@ export type TurnContext = {
   bundle: Bundle;
   /** The last substantive act of the bot in this conversation, e.g. "clarify". */
   lastBotAct?: string | null;
+  /** Questions answered earlier in this conversation. */
+  answeredBefore?: number;
+  /** A booking was offered, requested or handed to the team earlier, so the bot doesn't offer again. */
+  bookingOffered?: boolean;
 };
 
 export type PlannerResult = { commands: unknown; call: ModelCall | null };
@@ -69,6 +73,7 @@ export type SegmentKind =
   | "handover"
   | "cannot_handle"
   | "acknowledge"
+  | "suggest"
   | "error";
 
 export type Segment = {

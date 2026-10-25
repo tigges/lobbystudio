@@ -30,9 +30,15 @@ export async function staffReply(opts: {
     authorName: opts.author,
     createdAt: now,
   });
+  // A reply takes the chat back from the assistant, so the visitor's answer reaches the team.
+  const takeBack = conv.status === "active";
   await db
     .update(conversations)
-    .set({ lastHumanAt: now, lastActivityAt: now })
+    .set({
+      lastHumanAt: now,
+      lastActivityAt: now,
+      ...(takeBack ? { status: "handed_over" as const, flow: { name: "handover" as const, step: "waiting", slots: {} } } : {}),
+    })
     .where(eq(conversations.id, conv.id));
 
   const [handover] = await db
@@ -41,7 +47,7 @@ export async function staffReply(opts: {
     .where(and(eq(handovers.tenantId, opts.tenantId), eq(handovers.conversationId, conv.id)))
     .orderBy(desc(handovers.id))
     .limit(1);
-  if (handover && handover.status === "open") {
+  if (handover && handover.status !== "replied") {
     await db.update(handovers).set({ status: "replied", repliedAt: now }).where(eq(handovers.id, handover.id));
   }
 
@@ -66,6 +72,29 @@ export async function staffReply(opts: {
       createdAt: now,
     });
   }
+}
+
+/** Staff confirm or correct the visitor's contact details, e.g. after a phone call. Stored as vault tokens. */
+export async function setHandoverContact(opts: { tenantId: string; conversationId: string; name: string; phone: string }) {
+  const db = getDb();
+  const [handover] = await db
+    .select()
+    .from(handovers)
+    .where(and(eq(handovers.tenantId, opts.tenantId), eq(handovers.conversationId, opts.conversationId)))
+    .orderBy(desc(handovers.id))
+    .limit(1);
+  if (!handover) throw new Error("no handover for this conversation");
+  const contact: Record<string, string> = {};
+  for (const [key, raw] of [
+    ["name", opts.name],
+    ["phone", opts.phone],
+  ] as const) {
+    const value = raw.trim();
+    if (!value) continue;
+    const { text } = await tokeniseForConversation(opts.tenantId, opts.conversationId, value, { expectingName: key === "name" });
+    contact[key] = text;
+  }
+  await db.update(handovers).set({ contact }).where(eq(handovers.id, handover.id));
 }
 
 /** Returns the conversation to the bot. */

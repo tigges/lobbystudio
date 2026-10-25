@@ -50,8 +50,8 @@ export function asksForFixedTime(text: string): boolean {
   return /\b(?:confirm\w*|exact|specific|guarantee\w*|fixed)\b/i.test(text) && /\b(?:time|date|slot|appointment|when)\b/i.test(text);
 }
 
-const YES = /^(?:yes|yeah|yep|yup|sure|correct|that'?s right|please do|go ahead|ok(?:ay)?|y)\b[ ,.!]*(?:please|thanks?|thank you)?[.! ]*$/i;
-const NO = /^(?:no|nope|nah|not quite|wrong|that'?s wrong|n)\b/i;
+const YES = /^(?:yes|yeah|yep|yup|sure|correct|that'?s right|please do|go ahead|ok(?:ay)?|y)\b[ ,.!]*(?:please|thanks?|thank you|send it)?[.! ]*$/i;
+const NO = /^(?:no|nope|nah|not quite|wrong|that'?s wrong|change something|n)\b/i;
 
 export function yesNo(text: string): "yes" | "no" | null {
   const t = text.trim();

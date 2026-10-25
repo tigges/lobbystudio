@@ -26,6 +26,7 @@ const TENANT = script?.dataset.tenant ?? "default";
 const ACCENT = script?.dataset.accent;
 const STORE = `dental-bot:${TENANT}`;
 const POLL_MS = 4000;
+const IDLE_POLL_MS = 15000;
 const RATEABLE = new Set(["answer", "fallback", "cannot_handle", "handover"]);
 
 const ICON_CHAT =
@@ -83,6 +84,7 @@ class Widget {
   private busy = false;
   private lastId = 0;
   private pollTimer: number | null = null;
+  private pollEvery = 0;
 
   constructor() {
     const host = el("div", { id: "dental-bot-widget" });
@@ -187,6 +189,7 @@ class Widget {
     if (this.pollTimer !== null) {
       clearInterval(this.pollTimer);
       this.pollTimer = null;
+      this.pollEvery = 0;
     }
     this.banner.hidden = true;
     this.stars.querySelectorAll(".star").forEach((s) => s.classList.remove("on"));
@@ -226,11 +229,12 @@ class Widget {
     const handed = status === "handed_over";
     this.banner.hidden = !handed;
     this.banner.textContent = handed ? `You're talking to the ${this.session.practice.name} team. They'll reply here.` : "";
-    if (handed && this.pollTimer === null) this.pollTimer = window.setInterval(() => void this.poll(), POLL_MS);
-    if (!handed && this.pollTimer !== null) {
-      clearInterval(this.pollTimer);
-      this.pollTimer = null;
-    }
+    // Still poll, more slowly, while the assistant has the chat: the team can step back in at any time.
+    const every = handed ? POLL_MS : IDLE_POLL_MS;
+    if (this.pollEvery === every) return;
+    if (this.pollTimer !== null) clearInterval(this.pollTimer);
+    this.pollEvery = every;
+    this.pollTimer = window.setInterval(() => void this.poll(), every);
   }
 
   private async poll() {
@@ -249,6 +253,8 @@ class Widget {
 
   private renderMessage(m: Message): { row: HTMLDivElement; bubble: HTMLDivElement } {
     if (m.id) this.lastId = Math.max(this.lastId, m.id);
+    // Quick replies only make sense as answers to the latest message; older ones would send stale answers.
+    this.log.querySelectorAll(".options").forEach((o) => o.remove());
     const row = el("div", { class: `row ${m.role}` }) as HTMLDivElement;
     if (m.role === "staff") row.append(el("div", { class: "author" }, `${m.authorName ?? "Practice team"} · ${this.session?.practice.name ?? ""}`));
     const bubble = el("div", { class: "bubble" }, m.text) as HTMLDivElement;

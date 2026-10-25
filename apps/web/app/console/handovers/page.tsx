@@ -6,16 +6,22 @@ import { AutoRefresh } from "../ui";
 
 export const metadata = { title: "Handovers" };
 
-const STATUS_ORDER: Record<string, number> = { open: 0, replied: 1, released: 2, closed: 3 };
+const STATUS_ORDER: Record<string, number> = { "visitor replied": 0, open: 1, replied: 2, released: 3, closed: 4 };
 
-function displayStatus(h: { status: string; conversationStatus: string }) {
-  return h.conversationStatus === "closed" ? "closed" : h.status;
+type Row = { status: string; conversationStatus: string; lastRole: string | null };
+
+function displayStatus(h: Row) {
+  if (h.conversationStatus === "closed") return "closed";
+  if (h.status === "replied" && h.conversationStatus === "handed_over" && h.lastRole === "visitor") return "visitor replied";
+  return h.status;
 }
+
+const needsReply = (h: Row) => ["open", "visitor replied"].includes(displayStatus(h));
 
 export default async function HandoversPage() {
   const [handovers, bookings] = await Promise.all([listHandovers(SITE_TENANT), listBookingRequests(SITE_TENANT)]);
   const sorted = [...handovers].sort((a, b) => STATUS_ORDER[displayStatus(a)]! - STATUS_ORDER[displayStatus(b)]!);
-  const open = handovers.filter((h) => displayStatus(h) === "open").length;
+  const open = handovers.filter(needsReply).length;
 
   return (
     <div className="space-y-10">
@@ -40,7 +46,7 @@ export default async function HandoversPage() {
               <span className="w-48 shrink-0 truncate text-xs text-slate-600">
                 {h.contact.name || h.contact.phone ? [h.contact.name, h.contact.phone].filter(Boolean).join(" · ") : <span className="text-slate-400">no contact yet</span>}
               </span>
-              <span className="w-20 text-xs text-slate-500">{displayStatus(h)}</span>
+              <span className={`w-24 text-xs ${needsReply(h) ? "font-medium text-amber-700" : "text-slate-500"}`}>{displayStatus(h)}</span>
               <span className="w-28 text-right text-xs text-slate-500">{when(h.createdAt)}</span>
             </Link>
           ))}

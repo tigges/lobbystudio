@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { releaseToBot, staffReply } from "@dental-bot/core";
+import { releaseToBot, setHandoverContact, staffReply } from "@dental-bot/core";
 import { SITE_TENANT } from "@/lib/site";
 
 export async function replyAction(form: FormData) {
@@ -15,6 +15,17 @@ export async function replyAction(form: FormData) {
     text,
     author,
     saveAsLabel: form.get("saveAsLabel") === "on",
+  });
+  revalidatePath(`/console/handovers/${conversationId}`);
+}
+
+export async function contactAction(form: FormData) {
+  const conversationId = String(form.get("conversationId"));
+  await setHandoverContact({
+    tenantId: SITE_TENANT,
+    conversationId,
+    name: String(form.get("name") ?? ""),
+    phone: String(form.get("phone") ?? ""),
   });
   revalidatePath(`/console/handovers/${conversationId}`);
 }

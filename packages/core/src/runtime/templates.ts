@@ -58,4 +58,17 @@ export const TOPIC_LEAD = "That covers a few things. Which would you like to kno
 
 export const ACKNOWLEDGE = "You're welcome. Is there anything else I can help with?";
 
-export const WAITING_FOR_TEAM = "The practice team has your message and will reply here.";
+/** Offered at most once per conversation, and never after a handover or a booking. */
+export const BOOKING_OFFER = "If you're thinking of coming in, I can pass a booking request to the team and they'll call you to find a time.";
+
+export const ACKNOWLEDGE_WITH_OFFER = "You're welcome. If you'd like to come in, I can ask the team to call you to arrange a visit.";
+
+export const BOOK_OPTION = "Book an appointment";
+
+export const OFFER_OPTIONS = [BOOK_OPTION, "Not right now"];
+
+export const OFFER_DECLINED = "No problem. Just ask if anything else comes up.";
+
+export function waitingForTeam(p: Practice): string {
+  return `The practice team has your message and will reply here. If it's urgent, please call us on ${p.phone}.`;
+}

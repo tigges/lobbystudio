@@ -81,7 +81,13 @@ export async function conversationDetail(tenantId: string, conversationId: strin
       .where(and(eq(bookingRequests.tenantId, tenantId), eq(bookingRequests.conversationId, conversationId)))
   ).map((b) => ({ ...b, slots: Object.fromEntries(Object.entries(b.slots).map(([k, v]) => [k, detokenise(v, values)])) }));
   const reveal = (slots: Record<string, string>) => Object.fromEntries(Object.entries(slots).map(([k, v]) => [k, detokenise(v, values)]));
+  const lastOfKind = (kind: string) =>
+    [...values]
+      .filter(([token]) => token.startsWith(`‹${kind}_`))
+      .sort(([a], [b]) => Number(a.replace(/\D/g, "")) - Number(b.replace(/\D/g, "")))
+      .at(-1)?.[1];
   return {
+    typedContact: { name: lastOfKind("NAME"), phone: lastOfKind("PHONE") },
     conversation: conv,
     versionNumber: version?.number ?? null,
     messages: msgs,
@@ -130,6 +136,7 @@ export async function listHandovers(tenantId: string) {
       contact: handovers.contact,
       lastMessage: sql<string | null>`(select m.text from ${messages} m where m.conversation_id = "handovers"."conversation_id" and m.role = 'visitor' order by m.id desc limit 1)`,
       conversationStatus: sql<string>`(select c.status from ${conversations} c where c.id = "handovers"."conversation_id")`,
+      lastRole: sql<string | null>`(select m.role from ${messages} m where m.conversation_id = "handovers"."conversation_id" and m.role <> 'system' order by m.id desc limit 1)`,
     })
     .from(handovers)
     .where(eq(handovers.tenantId, tenantId))
