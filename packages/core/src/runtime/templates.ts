@@ -58,4 +58,6 @@ export const TOPIC_LEAD = "That covers a few things. Which would you like to kno
 
 export const ACKNOWLEDGE = "You're welcome. Is there anything else I can help with?";
 
-export const WAITING_FOR_TEAM = "The practice team has your message and will reply here.";
+export function waitingForTeam(p: Practice): string {
+  return `The practice team has your message and will reply here. If it's urgent, please call us on ${p.phone}.`;
+}

@@ -199,7 +199,14 @@ export async function runExecutor(ctx: TurnContext, deps: ExecutorDeps, emit: Em
       if (step.changed) result.contact = { ...step.flow.slots };
       if (step.reply) out.template("flow", step.reply);
       trace.guardrails.push({ rule: "handover_contact", result: step.changed ? "hit" : "pass", detail: `${ctx.flow.step} → ${step.flow.step}` });
+      return finish();
     }
+    // Pressing a button, or writing before anyone from the team has replied, gets one acknowledgement
+    // so the visitor isn't left wondering; once the team is talking, the bot stays out of the way.
+    const waiting = T.waitingForTeam(practice);
+    const lastBot = ctx.history.findLast((h) => h.role === "bot")?.text;
+    const teamReplied = ctx.history.some((h) => h.role === "staff");
+    if (ctx.action || (!teamReplied && lastBot !== waiting)) out.template("acknowledge", waiting);
     return finish();
   }
 

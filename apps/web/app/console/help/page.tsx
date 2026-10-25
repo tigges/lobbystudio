@@ -27,7 +27,7 @@ const STEPS = [
     title: "2. Check the Handovers queue",
     img: "02-handovers-queue.webp",
     body: [
-      "Handovers is the console's start page. Open conversations are listed first. The coloured label is the reason: red means pain or an emergency, so answer those first.",
+      "Handovers is the console's start page. Chats waiting for you are listed first: “visitor replied” means the visitor has answered you, and “open” means nobody has replied yet. The coloured label is the reason: red means pain or an emergency, so answer those first.",
       "Booking requests sit underneath. Each one is a call-back request, not a confirmed appointment: phone the visitor, agree a time, and book it in your practice system.",
       "The page refreshes itself every few seconds, so you can leave it open.",
     ],
@@ -38,6 +38,7 @@ const STEPS = [
     img: "03-reply-to-visitor.webp",
     body: [
       "Click a handover to see the whole conversation and the contact details the assistant collected. Type your reply on the right and press Send reply. It appears in the visitor's chat window straight away, under your name.",
+      "The Contact card shows the name and phone number the visitor gave. If they only typed them in the chat, it says “not yet confirmed”: use Confirm contact to save them, or Edit contact to correct them after a phone call.",
       "Leave “Save as the correct answer” ticked when your reply would be the right answer for anyone asking the same thing. Saved answers are collected to improve the assistant; nothing changes in the chat until a proposed improvement is approved.",
       "Never give clinical advice in the chat. If someone is in pain, ask them to call the practice or, out of hours, NHS 111.",
     ],
@@ -47,7 +48,8 @@ const STEPS = [
     title: "4. The visitor sees your reply",
     img: "04-visitor-sees-reply.webp",
     body: [
-      "Your message shows in the visitor's chat with your name. While a conversation is with the team, the assistant stays quiet, so the visitor can reply to you directly.",
+      "Your message shows in the visitor's chat with your name. While a conversation is with the team, the assistant stays quiet apart from a short “the team has your message” note, so the visitor can reply to you directly.",
+      "Their answer appears at the bottom of the conversation on the handover page, which refreshes on its own, and the queue marks the chat “visitor replied”. Replying to a chat you have already released takes it back from the assistant.",
     ],
   },
   {
@@ -56,6 +58,7 @@ const STEPS = [
     img: "05-release-to-assistant.webp",
     body: [
       "When you're finished, press Release to assistant. The assistant then answers the visitor's next questions again. If you don't release, the conversation stays with the team.",
+      "Don't release straight after asking the visitor a question: their answer would go to the assistant instead of you. The page warns you when your last message was a question.",
     ],
   },
   {
@@ -73,7 +76,7 @@ const STEPS = [
     img: "07-turn-ledger.webp",
     body: [
       "The conversation inspector shows the chat on the left and the turn ledger on the right: for each visitor message, what the assistant decided to do, which page sections it found, which safety checks ran, and what it cost.",
-      "Personal details are stored as tokens such as ‹NAME_1›, exactly as the AI saw them. Use the ledger to see why an answer was wrong before raising it with whoever maintains the assistant.",
+      "Personal details are stored as tokens such as ‹NAME_1›, exactly as the AI saw them. Use the ledger to see why an answer was wrong, then send the conversation link to the person who looks after the assistant's set-up.",
     ],
   },
 ];
@@ -196,8 +199,7 @@ export default function HelpPage() {
           </dl>
         </div>
         <p className="text-sm text-slate-600">
-          Questions about the assistant's answers? Open the conversation, check the turn ledger, and share the link with whoever maintains
-          it. <Link href="/console/handovers" className="text-harbour-700 hover:underline">Back to Handovers</Link>
+          Questions about the assistant's answers? Open the conversation, check the turn ledger, and share the link with the person who looks after the assistant's set-up. <Link href="/console/handovers" className="text-harbour-700 hover:underline">Back to Handovers</Link>
         </p>
       </section>
     </div>

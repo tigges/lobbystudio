@@ -128,7 +128,9 @@ export async function runTurn(opts: {
   if (!rawText && !action) throw new Error("text or action required");
 
   const flow = conv.flow as FlowState | null;
-  const expectingName = flow?.name === "booking_request" && flow.step !== "change" && nextBookingStep(flow) === "name";
+  const expectingName =
+    (flow?.name === "booking_request" && flow.step !== "change" && nextBookingStep(flow) === "name") ||
+    (flow?.name === "handover" && flow.step === "name");
   const tokenised = rawText
     ? (await tokeniseForConversation(opts.tenantId, conv.id, rawText, { expectingName })).text
     : null;

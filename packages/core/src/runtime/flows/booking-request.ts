@@ -1,12 +1,12 @@
 import type { FlowState } from "@dental-bot/db/schema";
 import { isPhoneLike, tokenKind } from "../../pii/detect.ts";
 
-export const BOOKING_SLOTS = ["reason", "name", "phone", "patient", "care", "preferred_time", "confirm"] as const;
+export const BOOKING_SLOTS = ["reason", "patient", "care", "preferred_time", "name", "phone", "confirm"] as const;
 export type BookingSlot = (typeof BOOKING_SLOTS)[number];
 
 const PROMPTS: Record<Exclude<BookingSlot, "confirm">, string> = {
   reason: "What would you like to book? For example a check-up, a hygienist appointment or a consultation.",
-  name: "What's your name?",
+  name: "Thanks. And what name should the team ask for?",
   phone: "What's the best phone number for the team to call you back on?",
   patient: "Are you new to the practice, or an existing patient?",
   care: "Would this be NHS or private treatment?",

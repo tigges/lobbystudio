@@ -45,12 +45,27 @@ describe("hard rules", () => {
     expect(r.trace.rejected).toHaveLength(1);
   });
 
-  it("does not answer at all once the conversation is handed over", async () => {
+  it("only acknowledges once the conversation is handed over, then stays quiet while the team talks", async () => {
     const { deps, calls } = fakeDeps();
-    const r = await runExecutor(ctx({ visitorText: "hello?", status: "handed_over" }), deps);
+    const first = await runExecutor(ctx({ visitorText: "hello?", status: "handed_over" }), deps);
     expect(calls.plan).toBe(0);
-    expect(r.segments).toEqual([]);
-    expect(r.act).toBe("waiting");
+    expect(first.act).toBe("waiting");
+    expect(first.segments.map((s) => s.text)).toEqual([expect.stringMatching(/has your message/)]);
+
+    const again = await runExecutor(
+      ctx({ visitorText: "anyone?", status: "handed_over", history: [{ role: "bot", text: first.segments[0]!.text }] }),
+      deps,
+    );
+    expect(again.segments).toEqual([]);
+
+    const talking = await runExecutor(
+      ctx({ visitorText: "yes Wednesday works", status: "handed_over", history: [{ role: "staff", text: "Could you do Wednesday?" }] }),
+      deps,
+    );
+    expect(talking.segments).toEqual([]);
+
+    const button = await runExecutor(ctx({ visitorText: null, action: "book", status: "handed_over", history: [{ role: "staff", text: "Hi" }] }), deps);
+    expect(button.segments).toHaveLength(1);
   });
 
   it("the talk-to-the-practice exit hands over without the planner", async () => {
@@ -172,12 +187,12 @@ describe("booking_request flow", () => {
   it("runs the slots in order and creates a booking request on confirmation", async () => {
     let flow = null as ReturnType<typeof ctx>["flow"];
     const steps: [string | null, "book" | null, unknown[], RegExp][] = [
-      [null, "book", [], /name/],
-      ["‹NAME_1›", null, [{ cmd: "set_slot", slot: "name", value: "‹NAME_1›" }], /phone number/],
-      ["‹PHONE_1›", null, [{ cmd: "set_slot", slot: "phone", value: "‹PHONE_1›" }], /new to the practice/],
+      [null, "book", [], /new to the practice/],
       ["New patient", null, [], /NHS or private/],
       ["NHS", null, [], /days or times/],
-      ["tuesday evenings", null, [{ cmd: "set_slot", slot: "preferred_time", value: "tuesday evenings" }], /Shall I send this/],
+      ["tuesday evenings", null, [{ cmd: "set_slot", slot: "preferred_time", value: "tuesday evenings" }], /what name/],
+      ["‹NAME_1›", null, [{ cmd: "set_slot", slot: "name", value: "‹NAME_1›" }], /phone number/],
+      ["‹PHONE_1›", null, [{ cmd: "set_slot", slot: "phone", value: "‹PHONE_1›" }], /Shall I send this/],
     ];
     for (const [text, action, commands, prompt] of steps) {
       const { deps } = fakeDeps({ commands });
@@ -204,7 +219,7 @@ describe("booking_request flow", () => {
   });
 
   it("re-asks when the phone number is invalid", async () => {
-    const flow = { name: "booking_request" as const, step: "phone", slots: { reason: "Check-up", name: "‹NAME_1›" } };
+    const flow = { name: "booking_request" as const, step: "phone", slots: { reason: "Check-up", patient: "new", care: "NHS", preferred_time: "mornings", name: "‹NAME_1›" } };
     const { deps } = fakeDeps({ commands: [{ cmd: "set_slot", slot: "phone", value: "12345" }] });
     const r = await runExecutor(ctx({ visitorText: "12345", flow }), deps);
     expect(r.segments[0]!.text).toMatch(/doesn't look like a UK phone number/);
@@ -230,7 +245,7 @@ describe("booking_request flow", () => {
   });
 
   it("answers a side question mid-flow, then repeats the current step", async () => {
-    const flow = { name: "booking_request" as const, step: "phone", slots: { reason: "Check-up", name: "‹NAME_1›" } };
+    const flow = { name: "booking_request" as const, step: "phone", slots: { reason: "Check-up", patient: "new", care: "NHS", preferred_time: "mornings", name: "‹NAME_1›" } };
     const { deps } = fakeDeps({
       commands: [{ cmd: "answer_from_knowledge", query: "saturday hours" }],
       chunks: [hoursChunk],
@@ -264,7 +279,7 @@ describe("booking_request flow", () => {
   });
 
   it("does not take an answer to another question as a name", async () => {
-    const flow = { name: "booking_request" as const, step: "name", slots: { reason: "Check-up" } };
+    const flow = { name: "booking_request" as const, step: "name", slots: { reason: "Check-up", patient: "new", care: "NHS", preferred_time: "mornings" } };
     const { deps } = fakeDeps({ commands: [{ cmd: "set_slot", slot: "name", value: "Routine check-up" }] });
     const r = await runExecutor(ctx({ visitorText: "Routine check-up", flow }), deps);
     expect(r.flow?.slots.name).toBeUndefined();
