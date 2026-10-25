@@ -13,3 +13,4 @@ export { slugify } from "./retrieval/chunk.ts";
 export * from "./services/sweeper.ts";
 export * from "./services/review.ts";
 export * from "./labels.ts";
+export * from "./flow-map.ts";

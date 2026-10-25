@@ -218,6 +218,7 @@ export async function runTurn(opts: {
       flowAfter: result.flow,
       error: result.trace.error,
       build: opts.build ?? null,
+      decidedBy: result.trace.plannerSkipped,
       createdAt: now,
     })
     .returning({ id: turns.id });
