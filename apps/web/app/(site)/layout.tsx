@@ -1,5 +1,6 @@
 import Link from "next/link";
 import Script from "next/script";
+import { buildLabel } from "@/lib/build";
 import { PRACTICE, pageHref, SITE_TENANT, sitePages } from "@/lib/site";
 import { NavLinks } from "./nav-links";
 
@@ -52,6 +53,9 @@ export default async function SiteLayout({ children }: { children: React.ReactNo
             </p>
           </div>
         </div>
+        <p className="mx-auto max-w-5xl px-5 pb-4 text-xs text-slate-400">
+          {buildLabel()} · assistant v{bundle.versionNumber} · content v{bundle.contentVersionNumber}
+        </p>
       </footer>
 
       <Script src="/widget.js" data-tenant={SITE_TENANT} data-accent="#0f6e6e" strategy="afterInteractive" />

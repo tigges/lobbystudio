@@ -14,6 +14,7 @@ type Message = {
 type Session = {
   conversationId: string;
   versionNumber: number;
+  build?: string;
   status: string;
   practice: { name: string; phone: string };
   messages: Message[];
@@ -213,6 +214,7 @@ class Widget {
       .join("")
       .slice(0, 2);
     this.versionEl.textContent = `v${this.session.versionNumber}`;
+    this.versionEl.title = `Assistant v${this.session.versionNumber}${this.session.build ? ` · build ${this.session.build}` : ""}`;
     this.log.replaceChildren();
     for (const m of this.session.messages) this.renderMessage(m);
     this.setStatus(this.session.status);

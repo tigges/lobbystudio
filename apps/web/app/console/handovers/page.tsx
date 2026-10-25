@@ -6,12 +6,16 @@ import { AutoRefresh } from "../ui";
 
 export const metadata = { title: "Handovers" };
 
-const STATUS_ORDER = { open: 0, replied: 1, released: 2 } as const;
+const STATUS_ORDER: Record<string, number> = { open: 0, replied: 1, released: 2, closed: 3 };
+
+function displayStatus(h: { status: string; conversationStatus: string }) {
+  return h.conversationStatus === "closed" ? "closed" : h.status;
+}
 
 export default async function HandoversPage() {
   const [handovers, bookings] = await Promise.all([listHandovers(SITE_TENANT), listBookingRequests(SITE_TENANT)]);
-  const sorted = [...handovers].sort((a, b) => STATUS_ORDER[a.status] - STATUS_ORDER[b.status]);
-  const open = handovers.filter((h) => h.status === "open").length;
+  const sorted = [...handovers].sort((a, b) => STATUS_ORDER[displayStatus(a)]! - STATUS_ORDER[displayStatus(b)]!);
+  const open = handovers.filter((h) => displayStatus(h) === "open").length;
 
   return (
     <div className="space-y-10">
@@ -33,7 +37,7 @@ export default async function HandoversPage() {
                 {label(h.reason)}
               </span>
               <span className="min-w-0 flex-1 truncate text-sm text-slate-800">{h.lastMessage ?? "—"}</span>
-              <span className="w-20 text-xs text-slate-500">{h.status}</span>
+              <span className="w-20 text-xs text-slate-500">{displayStatus(h)}</span>
               <span className="w-28 text-right text-xs text-slate-500">{when(h.createdAt)}</span>
             </Link>
           ))}

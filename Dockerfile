@@ -18,6 +18,11 @@ COPY . .
 # depend on the Hugging Face hub and a first boot on a 0.1 CPU instance doesn't embed the whole site.
 RUN cd packages/core && node --import tsx src/seed/precompute-embeddings.ts
 
+# Render passes RENDER_GIT_COMMIT to Docker builds; the GHCR workflow passes GIT_COMMIT.
+ARG GIT_COMMIT
+ARG RENDER_GIT_COMMIT
+RUN printf '{"commit":"%s","builtAt":"%s"}\n' "${GIT_COMMIT:-${RENDER_GIT_COMMIT:-unknown}}" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > build-info.json
+
 RUN pnpm widget:build && NODE_ENV=production pnpm --filter @dental-bot/web build
 
 ENV NODE_ENV=production

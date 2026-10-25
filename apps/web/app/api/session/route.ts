@@ -1,4 +1,5 @@
 import { startSession } from "@dental-bot/core";
+import { buildInfo } from "@/lib/build";
 import { fail, tenantId, isUuid, json, preflight, readJson } from "@/lib/api";
 
 export const runtime = "nodejs";
@@ -17,5 +18,5 @@ export async function POST(req: Request) {
     visitorId,
     conversationId: isUuid(body.conversationId) ? body.conversationId : null,
   });
-  return json(session);
+  return json({ ...session, build: buildInfo().commit });
 }
