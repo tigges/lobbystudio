@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { clearTurnLabel, releaseToBot, setConversationReviewed, setHandoverContact, setLabelsActioned, setTurnLabel, staffReply } from "@dental-bot/core";
+import { clearTurnLabel, releaseToBot, setLearnedStatus, setConversationReviewed, setHandoverContact, setLabelsActioned, setTurnLabel, staffReply } from "@dental-bot/core";
 import { buildInfo } from "@/lib/build";
 import { currentTenant } from "@/lib/business";
 
@@ -18,6 +18,14 @@ export async function replyAction(form: FormData) {
     saveAsLabel: form.get("saveAsLabel") === "on",
   });
   revalidatePath(`/console/handovers/${conversationId}`);
+}
+
+export async function learnedAction(form: FormData) {
+  const id = Number(form.get("id"));
+  const status = String(form.get("status"));
+  if (!Number.isInteger(id) || !["published", "held", "removed"].includes(status)) return;
+  await setLearnedStatus({ tenantId: await currentTenant(), id, status: status as "published" | "held" | "removed" });
+  revalidatePath("/console/insights");
 }
 
 export async function contactAction(form: FormData) {
