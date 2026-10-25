@@ -11,7 +11,7 @@ export default async function SiteLayout({ children }: { children: React.ReactNo
   const nav = pages.map((p) => ({ href: pageHref(p.slug), label: p.navLabel }));
 
   return (
-    <div className="flex min-h-screen flex-col">
+    <div className="flex min-h-screen flex-col overflow-x-clip">
       <header className="sticky top-0 z-10 border-b border-slate-200/70 bg-white/90 backdrop-blur">
         <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-x-6 gap-y-2 px-5 py-3">
           <Link href="/" className="flex items-center gap-2.5">
