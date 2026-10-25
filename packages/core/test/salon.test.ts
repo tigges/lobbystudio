@@ -251,6 +251,14 @@ describe("demo diary", () => {
     expect(again.map((t) => t.id)).not.toContain(slot!.id);
   });
 
+  it("doesn't offer or book a time saved as booked before a restart", async () => {
+    const [slot] = await demoDiary(MIKAN_HAIR).availability(query({ stylist: "Leo", preferredTime: "Thursday" }));
+    const diary = demoDiary(MIKAN_HAIR, async () => [slot!.id]);
+    const again = await diary.availability(query({ stylist: "Leo", preferredTime: "Thursday" }));
+    expect(again.map((t) => t.id)).not.toContain(slot!.id);
+    await expect(diary.book({ slot: slot!, service: "Cut", client: { name: "Mia", phone: "07700 900321" }, note: "" })).rejects.toThrow(/taken/);
+  });
+
   it("reads days and parts of the day from the visitor's words", () => {
     expect([...wantedDays("Tuesday or Thursday")!]).toEqual([2, 4]);
     expect([...wantedDays("weekends")!]).toEqual([0, 6]);
