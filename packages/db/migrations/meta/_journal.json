@@ -50,6 +50,13 @@
       "when": 1792958223570,
       "tag": "0006_turn_decided_by",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1792959661189,
+      "tag": "0007_business_packs",
+      "breakpoints": true
     }
   ]
 }

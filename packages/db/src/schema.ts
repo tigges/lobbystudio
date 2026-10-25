@@ -39,11 +39,17 @@ export const conversationStatusEnum = pgEnum("conversation_status", ["active", "
 
 export const messageRoleEnum = pgEnum("message_role", ["visitor", "bot", "staff", "system"]);
 
+/** How a finished booking conversation reaches the business: a call-back request, or straight into its booking system. */
+export type BookingConfig = { mode: "callback" } | { mode: "online"; system: "phorest" };
+
 export const tenants = pgTable("tenants", {
   id: text("id").primaryKey(),
   tenantId: text("tenant_id").notNull(),
   name: text("name").notNull(),
   phone: text("phone").notNull(),
+  /** The business pack the assistant runs with: its booking steps, safety rules and wording. */
+  vertical: text("vertical").$type<"dental" | "salon">().notNull().default("dental"),
+  booking: jsonb("booking").$type<BookingConfig>().notNull().default({ mode: "callback" }),
   createdAt: ts("created_at").notNull().defaultNow(),
 });
 
@@ -339,5 +345,10 @@ export const bookingRequests = pgTable("booking_requests", {
   conversationId: uuid("conversation_id").notNull(),
   slots: jsonb("slots").$type<Record<string, string>>().notNull(),
   status: text("status").$type<"new" | "contacted">().notNull().default("new"),
+  /** "online" when the booking was made in the business's booking system, else a request the team calls back on. */
+  channel: text("channel").$type<"callback" | "online">().notNull().default("callback"),
+  /** The booking system and its booking id, for online bookings. */
+  system: text("system"),
+  externalRef: text("external_ref"),
   createdAt: ts("created_at").notNull().defaultNow(),
 });
