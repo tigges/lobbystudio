@@ -25,6 +25,7 @@ const TENANT = script?.dataset.tenant ?? "default";
 const ACCENT = script?.dataset.accent;
 const STORE = `dental-bot:${TENANT}`;
 const POLL_MS = 4000;
+const RATEABLE = new Set(["answer", "fallback", "cannot_handle", "handover"]);
 
 const ICON_CHAT =
   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/></svg>';
@@ -109,7 +110,7 @@ class Widget {
     const avatar = el("div", { class: "avatar" }, "");
     const title = el("div", { class: "title" });
     this.titleEl = el("strong", {}, "Chat");
-    title.append(this.titleEl, el("span", {}, "Answers from our website"));
+    title.append(this.titleEl, el("span", {}, "Practice assistant"));
     this.versionEl = el("span", { class: "version", title: "Serving version" }, "v–");
     const close = el("button", { class: "icon-btn", "aria-label": "Close chat" }, "×");
     close.addEventListener("click", () => this.close());
@@ -262,7 +263,7 @@ class Widget {
       a.title = group.map((s) => s.heading).join(" · ");
       meta.append(a);
     }
-    if (m.id && m.kind !== "greeting") {
+    if (m.id && RATEABLE.has(m.kind)) {
       for (const [value, icon, label] of [
         [1, ICON_UP, "Helpful"],
         [-1, ICON_DOWN, "Not helpful"],

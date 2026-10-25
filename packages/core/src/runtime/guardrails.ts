@@ -39,6 +39,17 @@ export function isAffirmation(text: string): boolean {
   return t.length <= 60 && !t.includes("?") && AFFIRMATION.test(t);
 }
 
+const GREETING = /^(?:hi|hiya|hello|hey|hey there|hi there|hello there|good (?:morning|afternoon|evening))[!., ]*$/i;
+
+export function isGreeting(text: string): boolean {
+  return GREETING.test(text.trim());
+}
+
+/** A booking request cannot fix a date or time; only the team can, by phone. */
+export function asksForFixedTime(text: string): boolean {
+  return /\b(?:confirm\w*|exact|specific|guarantee\w*|fixed)\b/i.test(text) && /\b(?:time|date|slot|appointment|when)\b/i.test(text);
+}
+
 const YES = /^(?:yes|yeah|yep|yup|sure|correct|that'?s right|please do|go ahead|ok(?:ay)?|y)\b[ ,.!]*(?:please|thanks?|thank you)?[.! ]*$/i;
 const NO = /^(?:no|nope|nah|not quite|wrong|that'?s wrong|n)\b/i;
 
