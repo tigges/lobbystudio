@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { normaliseCommands, runExecutor } from "../src/runtime/executor.ts";
+import { validateSlot } from "../src/runtime/flows/booking-request.ts";
 import type { ExecutorEvent } from "../src/runtime/types.ts";
 import { bundle, ctx, fakeDeps, fillingChunk, hoursChunk, hygieneChunk } from "./fixtures.ts";
 
@@ -236,6 +237,16 @@ describe("booking_request flow", () => {
     const r = await runExecutor(ctx({ visitorText: "weekday mornings", flow }), deps);
     expect(r.flow?.slots.preferred_time).toBe("weekday mornings");
     expect(r.trace.guardrails).toContainEqual(expect.objectContaining({ rule: "slot_fallback" }));
+  });
+
+  it("does not take an answer to another question as a name", async () => {
+    const flow = { name: "booking_request" as const, step: "name", slots: { reason: "Check-up" } };
+    const { deps } = fakeDeps({ commands: [{ cmd: "set_slot", slot: "name", value: "Routine check-up" }] });
+    const r = await runExecutor(ctx({ visitorText: "Routine check-up", flow }), deps);
+    expect(r.flow?.slots.name).toBeUndefined();
+    expect(r.segments[0]!.text).toMatch(/didn't catch your name/);
+    expect(validateSlot("name", "Sam Taylor")).toEqual({ ok: true, value: "Sam Taylor" });
+    expect(validateSlot("name", "Tuesday evening").ok).toBe(false);
   });
 });
 

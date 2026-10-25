@@ -13,6 +13,10 @@ const PROMPTS: Record<Exclude<BookingSlot, "confirm">, string> = {
 
 export type SlotResult = { ok: true; value: string } | { ok: false; error: string };
 
+/** Words that pass a letters-only pattern but are clearly an answer to a different question. */
+const NOT_A_NAME =
+  /\b(check-?ups?|appointments?|hygien\w*|clean(ing)?|fillings?|consult\w*|book\w*|routine|whitening|emergency|tooth|teeth|dentist|morning|afternoon|evening|monday|tuesday|wednesday|thursday|friday|saturday|sunday|yes|no|hi|hello|thanks?)\b/i;
+
 export function validateSlot(slot: string, value: string): SlotResult {
   const v = value.trim();
   switch (slot) {
@@ -20,7 +24,8 @@ export function validateSlot(slot: string, value: string): SlotResult {
       return v.length >= 2 && v.length <= 80 ? { ok: true, value: v } : { ok: false, error: "reason length" };
     case "name": {
       if (tokenKind(v) === "NAME") return { ok: true, value: v };
-      if (/^[\p{L}][\p{L}' .-]{0,58}$/u.test(v) && v.split(/\s+/).length <= 4) return { ok: true, value: v };
+      if (/^[\p{L}][\p{L}' .-]{0,58}$/u.test(v) && v.split(/\s+/).length <= 4 && !NOT_A_NAME.test(v))
+        return { ok: true, value: v };
       return { ok: false, error: "not a name" };
     }
     case "phone":

@@ -148,7 +148,7 @@ class Widget {
     const footer = el("div", { class: "footer" });
     footer.append(el("span", {}, "Demo practice · not medical advice"));
     this.stars = el("div", { class: "stars", "aria-label": "Rate this chat" }) as HTMLDivElement;
-    this.stars.append(el("span", {}, "Rate this chat"));
+    this.stars.append(el("span", {}, "Rate chat"));
     for (let i = 1; i <= 5; i++) {
       const star = el("button", { class: "star", "aria-label": `${i} star${i > 1 ? "s" : ""}` }, "★");
       star.addEventListener("click", () => void this.rate(i));
@@ -254,9 +254,12 @@ class Widget {
       row.append(opts);
     }
     const meta = el("div", { class: "meta" });
-    for (const s of m.sources) {
-      const a = el("a", { class: "source", href: sourceHref(s), target: "_top" }, `Source: ${s.page}`);
-      a.title = s.heading;
+    const byPage = new Map<string, Source[]>();
+    for (const s of m.sources) byPage.set(s.slug, [...(byPage.get(s.slug) ?? []), s]);
+    for (const group of byPage.values()) {
+      const first = group[0]!;
+      const a = el("a", { class: "source", href: sourceHref(first), target: "_top" }, `Source: ${first.page}`);
+      a.title = group.map((s) => s.heading).join(" · ");
       meta.append(a);
     }
     if (m.id && m.kind !== "greeting") {
@@ -276,6 +279,7 @@ class Widget {
       }
     }
     if (meta.childElementCount) row.append(meta);
+    this.scroll();
   }
 
   private scroll() {
@@ -285,7 +289,7 @@ class Widget {
   private async rate(n: number) {
     if (!this.session) return;
     this.stars.querySelectorAll(".star").forEach((s, i) => s.classList.toggle("on", i < n));
-    (this.stars.firstChild as HTMLElement).textContent = "Thanks for rating";
+    (this.stars.firstChild as HTMLElement).textContent = "Thanks";
     await api("/api/feedback", { tenant: TENANT, conversationId: this.session.conversationId, rating: n }).catch(() => {});
   }
 
