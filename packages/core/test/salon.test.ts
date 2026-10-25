@@ -7,7 +7,8 @@ import type { BookingSystem, OfferedSlot, SlotQuery } from "../src/booking/types
 import { wantedDays, wantedHours } from "../src/booking/when.ts";
 import { SALON_PACK } from "../src/packs/salon.ts";
 import { NONE_OF_THESE, pickTime, runExecutor } from "../src/runtime/executor.ts";
-import type { Bundle, ExecutorDeps, TurnResult } from "../src/runtime/types.ts";
+import { namedDays } from "../src/runtime/flows/salon-booking.ts";
+import type { Bundle, ExecutorDeps, HistoryItem, ScoredChunk, TurnResult } from "../src/runtime/types.ts";
 import { bundle as dentalBundle, ctx, fakeDeps } from "./fixtures.ts";
 
 const salon: Bundle = {
@@ -204,6 +205,78 @@ describe("picking an offered time", () => {
     ["sat", null],
   ])("%j", (text, expected) => {
     expect(pickTime(flow, text)).toEqual(expected ?? null);
+  });
+});
+
+describe("salon follow-up offers", () => {
+  const chunk = (heading: string, text: string): ScoredChunk => ({
+    chunkId: 90, page: "Salon", slug: "salon", heading, anchor: "a", text, score: 0.9, keywordScore: 0.2,
+  });
+  const WELCOME: HistoryItem = { role: "bot", text: "Hi, I'm the Mikan Hair Studio assistant." };
+
+  /** A question answered from one section, with the chat so far. */
+  async function ask(text: string, heading: string, history: HistoryItem[] = [WELCOME]) {
+    const { deps } = fakeDeps({
+      commands: [{ cmd: "answer_from_knowledge", query: text }],
+      chunks: [chunk(heading, "Saturday: 9am to 6pm. Every Tuesday and Wednesday, 20% off.")],
+      composed: "Here's the answer [1].",
+    });
+    const r = await runExecutor(ctx({ bundle: salon, visitorText: text, history, answeredBefore: history.filter((h) => h.role === "visitor").length, bookingOffered: history.some((h) => h.kind === "suggest") }), deps);
+    return { r, offer: r.segments.find((s) => s.kind === "suggest")?.text ?? null };
+  }
+
+  it.each([
+    ["Do I need a patch test for a toner?", "Patch tests before colour", "A patch test takes five minutes and you can walk in for one. Would you like me to book your toner for at least 48 hours after?"],
+    ["Do you have any offers on colour?", "Midweek colour days", "Would you like me to look for a Tuesday or Wednesday time for your colour?"],
+    ["Do you take walk-ins?", "Do you take walk-ins?", "Would you like me to book you a time instead, so you're sure of a stylist?"],
+    ["How long does balayage take?", "Highlights and balayage", "Would you like me to find you a time for a balayage?"],
+    ["How much is a cut and blow-dry with a senior stylist?", "Cut and style", "Would you like me to find you a time for a cut & style with a senior stylist?"],
+  ])("%j gets an offer that follows on from it", async (text, heading, expected) => {
+    expect((await ask(text, heading)).offer).toBe(expected);
+  });
+
+  it("offers again when a later question adds a detail, carrying the earlier ones over", async () => {
+    const earlier = "Would you like me to find you a time for a cut & style with a senior stylist?";
+    const history: HistoryItem[] = [
+      WELCOME,
+      { role: "visitor", text: "How much is a cut and blow-dry with a senior stylist?" },
+      { role: "bot", text: "Cut and blow-dry: senior stylist £75." },
+      { role: "bot", text: earlier, kind: "suggest" },
+    ];
+    const { offer } = await ask("Are you open on Saturdays?", "Opening hours", history);
+    expect(offer).toBe("Would you like me to find you a time on Saturdays for a cut & style with a senior stylist?");
+  });
+
+  it("doesn't repeat an offer, or offer again after \"Not right now\" or a booking", async () => {
+    const offer = "Would you like me to find you a time for a balayage?";
+    const asked = { role: "visitor", text: "How long does balayage take?" } as const;
+    expect((await ask("Can I bring my dog?", "Can I bring my dog?", [WELCOME, asked, { role: "bot", text: offer, kind: "suggest" }])).offer).toBe(null);
+    const declined: HistoryItem[] = [WELCOME, asked, { role: "bot", text: "Would you like…", kind: "suggest" }, { role: "visitor", text: "Not right now" }, { role: "bot", text: "No problem. Just ask if anything else comes up." }];
+    expect((await ask("Are you open on Saturdays?", "Opening hours", declined)).offer).toBe(null);
+    const { deps } = fakeDeps({ commands: [{ cmd: "answer_from_knowledge", query: "q" }], chunks: [chunk("Opening hours", "Saturday: 9am to 6pm.")], composed: "Open [1]." });
+    const r = await runExecutor(ctx({ bundle: salon, visitorText: "Are you open on Saturdays?", history: [WELCOME, asked], bookingOffered: true, bookingClosed: true }), deps);
+    expect(r.segments.some((s) => s.kind === "suggest")).toBe(false);
+  });
+
+  it("starts the booking with what the visitor has already said", async () => {
+    const offer = "Would you like me to look for a Tuesday or Wednesday time for your colour?";
+    const history: HistoryItem[] = [
+      WELCOME,
+      { role: "visitor", text: "Do you have any offers on colour with a senior stylist?" },
+      { role: "bot", text: "Every Tuesday and Wednesday, 20% off." },
+      { role: "bot", text: offer, kind: "suggest" },
+    ];
+    const { deps } = fakeDeps();
+    const r = await runExecutor(ctx({ bundle: salon, visitorText: "Yes please", history }), { ...deps, booking: fakeSystem().system, now: () => NOW });
+    expect(r.flow!.slots).toEqual({ service: "Colour", stylist: "Senior stylist", preferred_time: "Tuesday or Wednesday" });
+    expect(last(r).text).toBe(`Lovely, a colour with a senior stylist on Tuesday or Wednesday. ${SALON_PACK.booking.prompts.length}`);
+  });
+
+  it("reads the days a visitor names", () => {
+    expect(namedDays("Are you open on Saturdays?")).toBe("Saturdays");
+    expect(namedDays("tuesday or thursday, maybe Tuesday")).toBe("Tuesday or Thursday");
+    expect(namedDays("any weekends?")).toBe("weekends");
+    expect(namedDays("after work")).toBeNull();
   });
 });
 

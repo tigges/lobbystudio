@@ -43,7 +43,8 @@ export type Bundle = {
   handoverSources: { urgent: Source[]; clinical: Source[] };
 };
 
-export type HistoryItem = { role: "visitor" | "bot" | "staff" | "system"; text: string };
+/** `kind` is the message kind, e.g. "suggest" for a booking offer. */
+export type HistoryItem = { role: "visitor" | "bot" | "staff" | "system"; text: string; kind?: string };
 
 export type TurnContext = {
   visitorText: string | null;
@@ -58,6 +59,8 @@ export type TurnContext = {
   answeredBefore?: number;
   /** A booking was offered, requested or handed to the team earlier, so the bot doesn't offer again. */
   bookingOffered?: boolean;
+  /** A booking was made or the chat was handed to the team, so no further offers, even a new follow-up. */
+  bookingClosed?: boolean;
   /** Someone from the team has replied since the latest handover. */
   teamReplied?: boolean;
 };
