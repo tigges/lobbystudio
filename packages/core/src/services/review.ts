@@ -1,5 +1,5 @@
 import { and, eq, sql, type SQL } from "drizzle-orm";
-import { conversations, getDb, messages, turnLabels, turns } from "@dental-bot/db";
+import { conversations, evalRuns, getDb, messages, turnLabels, turns, type EvalScores } from "@dental-bot/db";
 import { isTurnLabel } from "../labels.ts";
 
 export type ReviewFilter = { version?: number | null; sinceDays?: number | null };
@@ -220,4 +220,35 @@ export async function groupTurns(tenantId: string, group: GroupKey, f: ReviewFil
     where ${scope(tenantId, f)} and ${predicate}
     order by t.created_at desc
     limit ${limit}`);
+}
+
+export type EvalRunSummary = {
+  id: number;
+  build: string | null;
+  llmMode: string;
+  cases: number;
+  passed: number;
+  scores: EvalScores | null;
+  failed: string[];
+  createdAt: Date;
+};
+
+/** The latest runs of the saved test conversations, newest first. */
+export async function recentEvalRuns(tenantId: string, limit = 5): Promise<EvalRunSummary[]> {
+  const rows = await getDb()
+    .select()
+    .from(evalRuns)
+    .where(eq(evalRuns.tenantId, tenantId))
+    .orderBy(sql`${evalRuns.createdAt} desc`)
+    .limit(limit);
+  return rows.map((r) => ({
+    id: r.id,
+    build: r.build,
+    llmMode: r.llmMode,
+    cases: r.cases,
+    passed: r.passed,
+    scores: r.scores ?? null,
+    failed: (r.results as { name: string; passed: boolean }[]).filter((c) => !c.passed).map((c) => c.name),
+    createdAt: r.createdAt,
+  }));
 }
