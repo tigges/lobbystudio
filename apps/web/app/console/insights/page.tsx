@@ -247,6 +247,7 @@ export default async function InsightsPage({ searchParams }: { searchParams: Pro
                       <span>
                         {(turn.latencyMs / 1000).toFixed(1)} s · ${turn.costUsd.toFixed(4)}
                       </span>
+                      {turn.label && <LabelChip label={turn.label} />}
                       {turn.kinds.map((k) => (
                         <span key={k} className="rounded bg-slate-100 px-1.5 py-0.5">
                           {REPLY_NAMES[k] ?? k}
@@ -265,7 +266,7 @@ export default async function InsightsPage({ searchParams }: { searchParams: Pro
                       {turn.reply ?? <span className="text-slate-400">(no reply)</span>}
                     </p>
                   </div>
-                  <LabelForm turnId={turn.id} current={turn.label} note={turn.note} path={listPath} compact />
+                  <LabelForm key={`${turn.label}:${turn.note}`} turnId={turn.id} current={turn.label} note={turn.note} path={listPath} compact />
                 </div>
               ))}
             </div>
