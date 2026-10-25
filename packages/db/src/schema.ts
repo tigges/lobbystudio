@@ -288,6 +288,8 @@ export const handovers = pgTable(
     reason: text("reason").notNull(),
     trigger: text("trigger").notNull(),
     status: text("status").$type<"open" | "replied" | "released">().notNull().default("open"),
+    /** Name and phone the bot collected after handing over, as vault tokens. */
+    contact: jsonb("contact").$type<Record<string, string>>().notNull().default({}),
     createdAt: ts("created_at").notNull().defaultNow(),
     repliedAt: ts("replied_at"),
   },

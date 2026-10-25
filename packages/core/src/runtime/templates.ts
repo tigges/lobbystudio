@@ -41,7 +41,6 @@ export function handoverMessage(p: Practice, reason: HandoverReason): string {
   return `I've passed this to the practice team. Someone will reply here during opening hours, or you can call us on ${p.phone}.`;
 }
 
-export const HANDOVER_CALLBACK_OFFER = "If you'd like a call back, leave your phone number here.";
 
 export function cannotHandle(p: Practice, reason: "out_of_scope" | "unsupported_request" | "abusive"): string {
   if (reason === "abusive") return "I can't help with that.";

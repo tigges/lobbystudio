@@ -6,13 +6,16 @@ import {
   BOOKING_CHANGE_PROMPT,
   BOOKING_INVALID,
   BOOKING_SLOTS,
+  BOOKING_OPTIONS,
   BOOKING_TIME_NOTE,
   bookingDone,
+  bookingOptions,
   bookingPrompt,
   nextBookingStep,
   startBooking,
   validateSlot,
 } from "./flows/booking-request.ts";
+import { collectContact, isCollectingContact, knownContact, startContact } from "./flows/handover-contact.ts";
 import {
   asksForFixedTime,
   checkGrounding,
@@ -162,6 +165,7 @@ export async function runExecutor(ctx: TurnContext, deps: ExecutorDeps, emit: Em
     status: ctx.status === "handed_over" ? "handed_over" : "active",
     handover: null,
     booking: null,
+    contact: null,
     act: "answered",
     answered: 0,
     fallbacks: 0,
@@ -188,6 +192,14 @@ export async function runExecutor(ctx: TurnContext, deps: ExecutorDeps, emit: Em
   if (ctx.status === "handed_over") {
     result.act = "waiting";
     trace.plannerSkipped = "handed_over";
+    const said = ctx.visitorText?.trim();
+    if (said && isCollectingContact(ctx.flow)) {
+      const step = collectContact(ctx.flow, said);
+      result.flow = step.flow;
+      if (step.changed) result.contact = { ...step.flow.slots };
+      if (step.reply) out.template("flow", step.reply);
+      trace.guardrails.push({ rule: "handover_contact", result: step.changed ? "hit" : "pass", detail: `${ctx.flow.step} → ${step.flow.step}` });
+    }
     return finish();
   }
 
@@ -224,6 +236,9 @@ export async function runExecutor(ctx: TurnContext, deps: ExecutorDeps, emit: Em
     } else if (bookingStep === "confirm" && yesNo(text)) {
       commands = [{ cmd: "set_slot", slot: "confirm", value: yesNo(text)! }];
       trace.plannerSkipped = "deterministic_confirm";
+    } else if (bookingStep && bookingStep in BOOKING_OPTIONS && !text.includes("?") && validateSlot(bookingStep, text).ok) {
+      commands = [{ cmd: "set_slot", slot: bookingStep, value: text }];
+      trace.plannerSkipped = "deterministic_option";
     } else if (isAffirmation(text)) {
       result.affirmed = true;
       result.act = "acknowledged";
@@ -337,7 +352,7 @@ export async function runExecutor(ctx: TurnContext, deps: ExecutorDeps, emit: Em
       if (step !== "done") {
         flow = { ...flow, step };
         const prompt = invalidSlot && invalidSlot === step && BOOKING_INVALID[step] ? BOOKING_INVALID[step]! : bookingPrompt(step, flow.slots);
-        out.template("flow", prompt);
+        out.template("flow", prompt, [], bookingOptions(step));
         if (result.answered === 0 || flowTouched) result.act = "flow";
       }
       result.topic ??= "flow:booking_request";
@@ -358,10 +373,13 @@ export async function runExecutor(ctx: TurnContext, deps: ExecutorDeps, emit: Em
       : reason === "clinical_advice"
         ? bundle.handoverSources.clinical
         : [];
-    out.template("handover", `${T.handoverMessage(practice, reason)} ${T.HANDOVER_CALLBACK_OFFER}`, sources);
+    out.template("handover", T.handoverMessage(practice, reason), sources);
+    const contact = startContact(knownContact(ctx.flow, text));
+    if (contact.prompt) out.template("flow", contact.prompt);
     result.handover = { reason, trigger };
+    result.contact = { ...contact.flow.slots };
     result.status = "handed_over";
-    result.flow = { name: "handover", step: "waiting", slots: {} };
+    result.flow = contact.flow;
     result.act = "handover";
     result.topic = `handover:${reason}`;
   }

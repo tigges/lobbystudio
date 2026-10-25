@@ -19,7 +19,7 @@ const STEPS = [
     img: "01-visitor-asks-for-team.webp",
     body: [
       "Visitors chat with the assistant on the practice website. It answers from the practice's own pages and shows a source link under each answer.",
-      "The conversation comes to you when the visitor presses “Talk to the practice”, mentions pain, swelling, bleeding or an injury, asks for clinical advice, or raises a complaint or a question about their records. The visitor sees a banner saying the team will reply in the chat.",
+      "The conversation comes to you when the visitor presses “Talk to the practice”, mentions pain, swelling, bleeding or an injury, asks for clinical advice, or raises a complaint or a question about their records. The visitor sees a banner saying the team will reply in the chat, and the assistant asks for their name and phone number so you can always get back to them.",
     ],
   },
   {
@@ -37,7 +37,7 @@ const STEPS = [
     title: "3. Read the chat and reply",
     img: "03-reply-to-visitor.webp",
     body: [
-      "Click a handover to see the whole conversation. Type your reply on the right and press Send reply. It appears in the visitor's chat window straight away, under your name.",
+      "Click a handover to see the whole conversation and the contact details the assistant collected. Type your reply on the right and press Send reply. It appears in the visitor's chat window straight away, under your name.",
       "Leave “Save as the correct answer” ticked when your reply would be the right answer for anyone asking the same thing. Saved answers are collected to improve the assistant; nothing changes in the chat until a proposed improvement is approved.",
       "Never give clinical advice in the chat. If someone is in pain, ask them to call the practice or, out of hours, NHS 111.",
     ],

@@ -44,6 +44,25 @@ export default async function HandoverPage({ params }: { params: Promise<{ id: s
       </section>
 
       <aside className="space-y-4">
+        {handover && (
+          <div className="rounded-2xl bg-white p-4 text-sm ring-1 ring-slate-200">
+            <h2 className="mb-1 font-semibold text-slate-900">Contact</h2>
+            {handover.contact.name || handover.contact.phone ? (
+              <>
+                <p className="text-slate-800">{handover.contact.name ?? "Name not given"}</p>
+                {handover.contact.phone ? (
+                  <a href={`tel:${handover.contact.phone.replace(/\s/g, "")}`} className="text-harbour-700 hover:underline">
+                    {handover.contact.phone}
+                  </a>
+                ) : (
+                  <p className="text-slate-500">Phone not given</p>
+                )}
+              </>
+            ) : (
+              <p className="text-slate-500">The assistant has asked for a name and phone number; none given yet.</p>
+            )}
+          </div>
+        )}
         {closed ? (
           <div className="space-y-2 rounded-2xl bg-white p-4 text-sm ring-1 ring-slate-200">
             <h2 className="font-semibold text-slate-900">Closed — nothing to do in the chat</h2>
@@ -53,7 +72,7 @@ export default async function HandoverPage({ params }: { params: Promise<{ id: s
             </p>
             <p className="text-slate-600">
               If the team promised something in the chat, such as holding an appointment or calling back, do it in the practice
-              system. The visitor's name and number are only here if they typed them.
+              system, using the contact details above.
             </p>
           </div>
         ) : (
