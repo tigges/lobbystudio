@@ -112,7 +112,7 @@ export default async function ConversationPage({
                 <span className="text-xs text-slate-400">{when(t.createdAt)}</span>
               </summary>
               <div className="border-t border-slate-100 bg-violet-50/40 px-4 py-3">
-                <LabelForm key={`${labels.get(t.id)?.label}:${labels.get(t.id)?.note}`} turnId={t.id} current={labels.get(t.id)?.label ?? null} note={labels.get(t.id)?.note ?? null} path={path} />
+                <LabelForm key={`${labels.get(t.id)?.label}:${labels.get(t.id)?.note}`} turnId={t.id} current={labels.get(t.id)?.label ?? null} note={labels.get(t.id)?.note ?? null} savedAt={labels.get(t.id)?.updatedAt ?? null} path={path} />
               </div>
               <div className="grid gap-4 border-t border-slate-100 px-4 py-3 text-xs md:grid-cols-2">
                 <div>

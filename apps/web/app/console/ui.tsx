@@ -1,7 +1,8 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useFormStatus } from "react-dom";
 
 const TEST_CHAT_KEY = "console:test-chat";
 
@@ -59,5 +60,29 @@ export function AdminNote({ children }: { children?: React.ReactNode }) {
       <span className="font-semibold uppercase tracking-wider">Admin</span>
       <span>{children ?? "For the platform owner. The practice team doesn't need this page."}</span>
     </p>
+  );
+}
+
+/** Submit button that shows the save is happening and has finished, since the page itself may not visibly change. */
+export function SaveButton({ children }: { children: React.ReactNode }) {
+  const { pending } = useFormStatus();
+  const [saved, setSaved] = useState(false);
+  const wasPending = useRef(false);
+  useEffect(() => {
+    const finished = wasPending.current && !pending;
+    wasPending.current = pending;
+    if (finished) {
+      setSaved(true);
+      const t = setTimeout(() => setSaved(false), 2500);
+      return () => clearTimeout(t);
+    }
+  }, [pending]);
+  return (
+    <button
+      disabled={pending}
+      className={`rounded-lg px-3 py-1 text-xs font-medium text-white ${saved ? "bg-emerald-600" : "bg-slate-800 hover:bg-slate-900"} disabled:opacity-60`}
+    >
+      {pending ? "Saving…" : saved ? "Saved ✓" : children}
+    </button>
   );
 }

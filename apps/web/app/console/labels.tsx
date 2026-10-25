@@ -1,5 +1,7 @@
 import { LABEL_GOALS, labelTitle, TURN_LABELS } from "@dental-bot/core";
+import { when } from "@/lib/format";
 import { labelTurnAction } from "./actions";
+import { SaveButton } from "./ui";
 
 export const LABEL_STYLE: Record<string, string> = {
   good: "bg-emerald-50 text-emerald-800 ring-emerald-200",
@@ -28,12 +30,14 @@ export function LabelForm({
   note,
   path,
   compact = false,
+  savedAt = null,
 }: {
   turnId: number;
   current: string | null;
   note: string | null;
   path: string;
   compact?: boolean;
+  savedAt?: Date | string | null;
 }) {
   return (
     <form action={labelTurnAction} className={compact ? "flex flex-wrap items-center gap-2" : "space-y-2"}>
@@ -80,8 +84,9 @@ export function LabelForm({
         aria-label="Note"
         className={`rounded-lg border border-slate-300 px-2 py-1 text-xs ${compact ? "min-w-48 flex-1" : "w-full"}`}
       />
-      <div className="flex gap-2">
-        <button className="rounded-lg bg-slate-800 px-3 py-1 text-xs font-medium text-white hover:bg-slate-900">Save label</button>
+      <div className="flex items-center gap-2">
+        <SaveButton>Save label</SaveButton>
+        {current && savedAt && <span className="text-[11px] text-slate-400">saved {when(savedAt)}</span>}
         {current && !compact && (
           <button name="clear" value="1" className="rounded-lg px-3 py-1 text-xs text-slate-500 hover:bg-slate-100">
             Clear
