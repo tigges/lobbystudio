@@ -97,9 +97,9 @@ export async function listConversations(tenantId: string, limit = 100) {
       rating: conversations.rating,
       isDemo: conversations.isDemo,
       versionNumber: versions.number,
-      turns: sql<number>`(select count(*)::int from ${turns} t where t.conversation_id = ${conversations.id})`,
-      costUsd: sql<number>`(select coalesce(sum(t.cost_usd), 0)::float from ${turns} t where t.conversation_id = ${conversations.id})`,
-      firstMessage: sql<string | null>`(select m.text from ${messages} m where m.conversation_id = ${conversations.id} and m.role = 'visitor' order by m.id limit 1)`,
+      turns: sql<number>`(select count(*)::int from ${turns} t where t.conversation_id = "conversations"."id")`,
+      costUsd: sql<number>`(select coalesce(sum(t.cost_usd), 0)::float from ${turns} t where t.conversation_id = "conversations"."id")`,
+      firstMessage: sql<string | null>`(select m.text from ${messages} m where m.conversation_id = "conversations"."id" and m.role = 'visitor' order by m.id limit 1)`,
     })
     .from(conversations)
     .innerJoin(versions, eq(versions.id, conversations.versionId))
@@ -119,7 +119,7 @@ export async function listHandovers(tenantId: string) {
       status: handovers.status,
       createdAt: handovers.createdAt,
       repliedAt: handovers.repliedAt,
-      lastMessage: sql<string | null>`(select m.text from ${messages} m where m.conversation_id = ${handovers.conversationId} and m.role = 'visitor' order by m.id desc limit 1)`,
+      lastMessage: sql<string | null>`(select m.text from ${messages} m where m.conversation_id = "handovers"."conversation_id" and m.role = 'visitor' order by m.id desc limit 1)`,
     })
     .from(handovers)
     .where(eq(handovers.tenantId, tenantId))

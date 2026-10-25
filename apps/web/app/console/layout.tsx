@@ -7,6 +7,7 @@ export const metadata = { title: "Console" };
 const NAV = [
   { href: "/console/handovers", label: "Handovers" },
   { href: "/console/conversations", label: "Conversations" },
+  { href: "/console/help", label: "Help" },
 ];
 
 export default function ConsoleLayout({ children }: { children: React.ReactNode }) {
