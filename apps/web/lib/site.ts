@@ -1,15 +1,12 @@
 import { Marked } from "marked";
-import { DEFAULT_TENANT, promotedPages, slugify } from "@dental-bot/core";
+import { promotedPages, slugify } from "@dental-bot/core";
+import { currentTenant } from "./business";
 
-export const SITE_TENANT = process.env.SITE_TENANT ?? DEFAULT_TENANT;
-
-export const PRACTICE = {
-  address: ["14 Quayside Row", "Rotherhithe", "London SE16 4ZZ"],
-  email: "hello@harbourdental.example",
-};
+export { SITE_TENANT } from "./business";
 
 export async function sitePages() {
-  return promotedPages(SITE_TENANT);
+  const tenant = await currentTenant();
+  return { tenant, ...(await promotedPages(tenant)) };
 }
 
 export function pageHref(slug: string) {

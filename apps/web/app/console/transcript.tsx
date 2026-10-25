@@ -12,7 +12,7 @@ export function Transcript({ messages }: { messages: WidgetMessage[] }) {
     <div className="flex flex-col gap-2.5">
       {messages.map((m) => (
         <div key={m.id} className={`max-w-[85%] ${m.role === "visitor" ? "self-end" : m.role === "system" ? "self-center" : "self-start"}`}>
-          {m.role === "staff" && <p className="mb-0.5 text-xs text-emerald-800">{m.authorName ?? "Practice team"}</p>}
+          {m.role === "staff" && <p className="mb-0.5 text-xs text-emerald-800">{m.authorName ?? "Team"}</p>}
           <div className={`whitespace-pre-wrap rounded-2xl px-3.5 py-2 text-sm ${ROLE_STYLE[m.role]}`}>{m.text}</div>
           {(m.sources.length > 0 || m.feedback !== null) && (
             <div className="mt-1 flex flex-wrap gap-1.5 text-xs text-slate-500">

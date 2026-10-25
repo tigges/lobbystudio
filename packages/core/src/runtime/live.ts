@@ -1,15 +1,17 @@
 import { callTool, streamText } from "../llm/anthropic.ts";
 import { costUsd } from "../llm/pricing.ts";
 import { plannerToolSchema } from "./commands.ts";
-import { BOOKING_SLOTS, nextBookingStep } from "./flows/booking-request.ts";
+import { packFor } from "../packs/index.ts";
+import { nextBookingStep } from "./flows/booking.ts";
 import type { Bundle, ComposeResult, PlannerResult, ScoredChunk, TurnContext } from "./types.ts";
 
 export function plannerSystemPrompt(bundle: Bundle): string {
   const procedures = bundle.procedures.map((p) => `## ${p.key}: ${p.title}\n${p.steps}`).join("\n\n");
+  const pack = packFor(bundle.vertical);
   return [
-    `You are the planning component of the website chat for ${bundle.practice.name}, a dental practice.`,
+    `You are the planning component of the website chat for ${bundle.practice.name}, ${pack.kind}.`,
     "You never write messages to the visitor. You choose commands; a deterministic system executes them",
-    "and writes the reply using only the practice website and fixed templates.",
+    `and writes the reply using only the ${pack.place} website and fixed templates.`,
     "",
     `# Guidance (version ${bundle.versionNumber})`,
     bundle.guidance,
@@ -18,9 +20,8 @@ export function plannerSystemPrompt(bundle: Bundle): string {
     procedures,
     "",
     "# Flow catalogue",
-    `- booking_request: collects slots ${BOOKING_SLOTS.join(", ")} in that order. patient is "new" or "existing"; care is "NHS", "private" or "not sure"; confirm is "yes" or "no".`,
-    `  nhs_route ("child", "waiting list" or "private") is only asked of a new NHS patient; time_of_day ("morning", "afternoon", "evening" or "any time") only when preferred_time names no part of the day.`,
-    "- handover: passes the conversation to the practice team. Use the handover command, not start_flow.",
+    pack.booking.plannerNotes,
+    `- handover: passes the conversation to the ${pack.place} team. Use the handover command, not start_flow.`,
     "",
     "# Commands",
     "- answer_from_knowledge(query): the system searches the website and answers with a citation.",
@@ -36,7 +37,7 @@ export function plannerSystemPrompt(bundle: Bundle): string {
   ].join("\n");
 }
 
-/** The practice's local day and time, so "are you open now?" can be answered from the opening hours. */
+/** The business's local day and time, so "are you open now?" can be answered from the opening hours. */
 export function practiceNow(d: Date = new Date()): string {
   return new Intl.DateTimeFormat("en-GB", {
     timeZone: "Europe/London",
@@ -50,18 +51,25 @@ export function practiceNow(d: Date = new Date()): string {
 }
 
 function plannerUserMessage(ctx: TurnContext): string {
+  const pack = packFor(ctx.bundle.vertical);
+  const team = `${pack.place.charAt(0).toUpperCase()}${pack.place.slice(1)} team`;
   const history = ctx.history
     .slice(-12)
-    .map((h) => `${h.role === "visitor" ? "Visitor" : h.role === "staff" ? "Practice team" : "Assistant"}: ${h.text}`)
+    .map((h) => `${h.role === "visitor" ? "Visitor" : h.role === "staff" ? team : "Assistant"}: ${h.text}`)
     .join("\n");
   let state = "No flow is active.";
   if (ctx.flow?.name === "booking_request") {
-    const step = ctx.flow.step === "change" ? "change (visitor wants to change a detail)" : nextBookingStep(ctx.flow);
-    state = `Active flow: booking_request. Waiting for: ${step}. Slots so far: ${JSON.stringify(ctx.flow.slots)}.`;
+    const step =
+      ctx.flow.step === "change"
+        ? "change (visitor wants to change a detail)"
+        : nextBookingStep(pack.booking, ctx.flow, { online: ctx.bundle.booking?.mode === "online" });
+    const { offered, slot_id: _id, slot_start: _start, ...slots } = ctx.flow.slots;
+    const times = offered ? ` Times offered: ${(JSON.parse(offered) as { label: string }[]).map((o) => `"${o.label}"`).join(", ")}.` : "";
+    state = `Active flow: booking_request. Waiting for: ${step}. Slots so far: ${JSON.stringify(slots)}.${times}`;
   }
   return (
     `${history ? `Conversation so far:\n${history}\n\n` : ""}${state}\n` +
-    `Last assistant act: ${ctx.lastBotAct ?? "none"}. Now at the practice: ${practiceNow()}.\n\n` +
+    `Last assistant act: ${ctx.lastBotAct ?? "none"}. Now at the ${pack.place}: ${practiceNow()}.\n\n` +
     `Latest visitor message:\n${ctx.visitorText ?? ""}`
   );
 }
@@ -92,7 +100,7 @@ export async function livePlan(ctx: TurnContext): Promise<PlannerResult> {
   };
 }
 
-const COMPOSE_SYSTEM = (practiceName: string) =>
+const COMPOSE_SYSTEM = (practiceName: string, place: string) =>
   [
     `You turn extracts from the ${practiceName} website into a short chat answer to one question.`,
     "Rules:",
@@ -101,17 +109,17 @@ const COMPOSE_SYSTEM = (practiceName: string) =>
     "- Copy prices, times, numbers and phone numbers exactly. Keep qualifiers such as \"from\".",
     "- Never give advice about symptoms, treatment choices or medicines.",
     "- At most three short sentences, plain British English, speaking as \"we\".",
-    "- State facts as the practice's own knowledge. Never mention the website, pages, extracts or sources,",
+    `- State facts as the ${place}'s own knowledge. Never mention the website, pages, extracts or sources,`,
     "  unless the visitor asks where to find something on the website; then name the page.",
-    "- You are told the current day and time at the practice. For questions about now, today or tomorrow,",
+    `- You are told the current day and time at the ${place}. For questions about now, today or tomorrow,`,
     "  work the answer out from the opening hours, naming the day (\"we're closed on Sundays\") and only times",
     "  that appear in the extracts. Never state the current time or date itself.",
     "- If the extracts do not answer the question, reply with exactly NO_ANSWER.",
   ].join("\n");
 
-export function composeUserMessage(query: string, chunks: ScoredChunk[], now: string = practiceNow()): string {
+export function composeUserMessage(query: string, chunks: ScoredChunk[], now: string = practiceNow(), place = "practice"): string {
   const extracts = chunks.map((c, i) => `[${i + 1}] ${c.page} › ${c.heading}\n${c.text}`).join("\n\n");
-  return `Question: ${query}\nNow at the practice: ${now}\n\nExtracts:\n${extracts}`;
+  return `Question: ${query}\nNow at the ${place}: ${now}\n\nExtracts:\n${extracts}`;
 }
 
 export function liveCompose(query: string, chunks: ScoredChunk[], bundle: Bundle): ComposeResult {
@@ -119,8 +127,8 @@ export function liveCompose(query: string, chunks: ScoredChunk[], bundle: Bundle
   const t0 = Date.now();
   const { stream, done } = streamText({
     model,
-    system: COMPOSE_SYSTEM(bundle.practice.name),
-    messages: [{ role: "user", content: composeUserMessage(query, chunks) }],
+    system: COMPOSE_SYSTEM(bundle.practice.name, packFor(bundle.vertical).place),
+    messages: [{ role: "user", content: composeUserMessage(query, chunks, practiceNow(), packFor(bundle.vertical).place) }],
   });
   return {
     stream,

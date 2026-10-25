@@ -1,23 +1,20 @@
 import type { FlowState, Source } from "@dental-bot/db/schema";
 import { parseCommands, type Command, type HandoverReason } from "./commands.ts";
 import { NO_ANSWER, parseSentence, SentenceSplitter } from "./compose.ts";
+import type { BookedAppointment, OfferedSlot } from "../booking/types.ts";
+import { packFor } from "../packs/index.ts";
 import {
   applyBookingSlot,
-  BOOKING_CHANGE_PROMPT,
-  BOOKING_CONTINUE,
-  BOOKING_READY,
-  BOOKING_INVALID,
-  BOOKING_SLOTS,
-  BOOKING_TIME_NOTE,
-  bookingDone,
+  type BookingContext,
   bookingOptions,
   bookingPrompt,
   nextBookingStep,
   quickReplyValue,
+  SLOT_STEP,
   startBooking,
-  validateSlot,
   withDates,
-} from "./flows/booking-request.ts";
+} from "./flows/booking.ts";
+import { BOOKING_SLOTS } from "./flows/booking-request.ts";
 import { collectContact, isCollectingContact, knownContact, startContact } from "./flows/handover-contact.ts";
 import {
   asksForFixedTime,
@@ -46,14 +43,10 @@ type Emit = (event: ExecutorEvent) => void;
 const CONTEXT_MARGIN = 0.1;
 /** Queries this short that compose cannot answer are treated as a topic, not a question. */
 const TOPIC_MAX_WORDS = 3;
-/** Questions that suggest the visitor is planning a visit, so a booking offer after the first answer is welcome. */
-const VISIT_INTENT =
-  /\b(?:new (?:\w+ )?patients?|regist\w*|join|taking on|accepting|how much|cost\w*|price\w*|fees?|park\w*|step-?free|wheelchair|access\w*|get there|find you|directions|first visit)\b/i;
 /** Practice-local time for "are you open now?" and for dating "tomorrow" in booking requests. */
 const TIME_ZONE = "Europe/London";
 /** A bill or payment question the team can only act on with a little more detail. */
 const BILLING = /\b(?:bills?|invoices?|payments?|paid|pay|charged?|refunds?|receipts?|statements?|balance|direct debit)\b/i;
-const RED_FLAGS = /\b(?:breath\w*|swallow\w*|eyes?|won'?t stop|can'?t stop)\b/i;
 /** "prices", "how much?" and similar: a topic, answered with a short menu rather than a guess. */
 const PRICE_TOPIC = /^(?:(?:your |the )?(?:prices?|costs?|fees?|charges?|price list)|how much(?: is it| does it cost| do you charge)?|what (?:are|do) (?:your|you) (?:prices|charge))[?.! ]*$/i;
 /** Below this match score an answer must share a distinctive word with the question, so a near topic isn't served as the answer. */
@@ -61,6 +54,11 @@ const RELEVANCE_CHECK_BELOW = 0.75;
 const GENERIC_WORDS = new Set(
   "about also anything appointment appointments available could dental dentist does doing have harbour help know like long make many much need offer offered offering please practice provide should tell that their there these they this treat treated treatment treatments what when where which will with would your youre".split(" "),
 );
+/** "None of these", "different time": the visitor turns down the times offered from the booking system. */
+const NO_TIME_SUITS = /\b(?:none|neither|no(?:ne)? of (?:these|them|those)|don'?t (?:suit|work)|doesn'?t (?:suit|work)|other times?|different (?:time|day)|later|another day)\b/i;
+/** Minimum notice for a booking made from the chat, so the salon isn't surprised by a walk-in minutes away. */
+const MIN_NOTICE_HOURS = 2;
+const PATCH_TEST_HOURS = 48;
 const OFFER_DECLINE = /^(?:not right now|not now|not yet|maybe later|no(?:,? thanks?(?: you)?)?|i'?m (?:ok|fine|good)(?:,? thanks?)?)[.! ]*$/i;
 
 class ReplyWriter {
@@ -122,6 +120,7 @@ function sourceOf(c: ScoredChunk): Source {
 export function normaliseCommands(
   commands: Command[],
   flow: FlowState | null,
+  bookingSlots: readonly string[] = BOOKING_SLOTS,
 ): { kept: Command[]; dropped: { raw: Command; error: string }[] } {
   const dropped: { raw: Command; error: string }[] = [];
   const handover = commands.find((c) => c.cmd === "handover");
@@ -140,7 +139,7 @@ export function normaliseCommands(
 
   const applicable: Command[] = [];
   for (const c of commands) {
-    if (c.cmd === "set_slot" && (!bookingActive || !(BOOKING_SLOTS as readonly string[]).includes(c.slot))) {
+    if (c.cmd === "set_slot" && (!bookingActive || !bookingSlots.includes(c.slot))) {
       dropped.push({ raw: c, error: bookingActive ? `unknown slot ${c.slot}` : "set_slot without an active flow" });
     } else if (c.cmd === "start_flow" && flow?.name === "booking_request") {
       dropped.push({ raw: c, error: "flow already active" });
@@ -177,6 +176,9 @@ export async function runExecutor(ctx: TurnContext, deps: ExecutorDeps, emit: Em
   const started = now();
   const { bundle } = ctx;
   const practice = bundle.practice;
+  const pack = packFor(bundle.vertical);
+  const def = pack.booking;
+  const bctx: BookingContext = { online: bundle.booking?.mode === "online" && Boolean(deps.booking && pack.online) };
   const out = new ReplyWriter(emit, now);
 
   const result: TurnResult = {
@@ -185,6 +187,7 @@ export async function runExecutor(ctx: TurnContext, deps: ExecutorDeps, emit: Em
     status: ctx.status === "handed_over" ? "handed_over" : "active",
     handover: null,
     booking: null,
+    bookedOnline: null,
     contact: null,
     act: "answered",
     answered: 0,
@@ -218,14 +221,14 @@ export async function runExecutor(ctx: TurnContext, deps: ExecutorDeps, emit: Em
       const step = collectContact(ctx.flow, said);
       result.flow = step.flow;
       if (step.changed) result.contact = { ...step.flow.slots };
-      if (ctx.flow.step === "details" && RED_FLAGS.test(said)) out.template("handover", T.RED_FLAG_REMINDER);
+      if (ctx.flow.step === "details" && pack.redFlags.test(said)) out.template("handover", pack.redFlagReminder);
       if (step.reply) out.template("flow", step.reply, [], step.options);
       trace.guardrails.push({ rule: "handover_contact", result: step.changed ? "hit" : "pass", detail: `${ctx.flow.step} → ${step.flow.step}` });
       return finish();
     }
     // Pressing a button, or writing before anyone from the team has replied, gets one acknowledgement
     // so the visitor isn't left wondering; once the team is talking, the bot stays out of the way.
-    const waiting = T.waitingForTeam(practice);
+    const waiting = pack.waitingForTeam(practice);
     const lastBot = ctx.history.findLast((h) => h.role === "bot")?.text;
     const teamReplied = ctx.teamReplied || ctx.history.some((h) => h.role === "staff");
     if (ctx.action || (!teamReplied && lastBot !== waiting)) out.template("acknowledge", waiting);
@@ -236,6 +239,7 @@ export async function runExecutor(ctx: TurnContext, deps: ExecutorDeps, emit: Em
   let commands: Command[] = [];
   let handoverTrigger: "precheck" | "planner" | "visitor_button" = "planner";
   const bookingStep = ctx.flow?.name === "booking_request" ? nextStepOf(ctx.flow) : null;
+  const tappedTime = bookingStep === SLOT_STEP && ctx.flow ? pickTime(ctx.flow, text) : null;
   let timeNoteOnly = false;
   let rebook = false;
 
@@ -244,25 +248,15 @@ export async function runExecutor(ctx: TurnContext, deps: ExecutorDeps, emit: Em
     handoverTrigger = "visitor_button";
     trace.plannerSkipped = "exit_button";
   } else if (ctx.action === "book" || text.toLowerCase() === T.BOOK_OPTION.toLowerCase() || (offerPending() && yesNo(text) === "yes")) {
-    // The "Book a check-up" button knows the reason; the offer's "Book an appointment" chip asks for it.
-    const tapped = !ctx.action;
     rebook = ctx.flow?.name === "booking_request";
-    commands =
-      rebook
-        ? []
-        : tapped
-          ? [{ cmd: "start_flow", flow: "booking_request" }]
-          : [
-              { cmd: "start_flow", flow: "booking_request" },
-              { cmd: "set_slot", slot: "reason", value: "Check-up" },
-            ];
-    trace.plannerSkipped = tapped ? "booking_offer" : "exit_button";
+    commands = rebook ? [] : [{ cmd: "start_flow", flow: "booking_request" }];
+    trace.plannerSkipped = ctx.action ? "exit_button" : "booking_offer";
   } else if (askTeamPending() && (text === T.ASK_TEAM_OPTIONS[0] || yesNo(text) === "yes")) {
     commands = [{ cmd: "handover", reason: "visitor_request" }];
     handoverTrigger = "visitor_button";
     trace.plannerSkipped = "ask_team_offer";
   } else {
-    const pre = clinicalPrecheck(text);
+    const pre = clinicalPrecheck(text, pack.precheck);
     trace.guardrails.push(
       pre.hit
         ? { rule: "clinical_precheck", result: "hit", detail: `${pre.reason}: "${pre.matched}"` }
@@ -275,8 +269,11 @@ export async function runExecutor(ctx: TurnContext, deps: ExecutorDeps, emit: Em
     } else if (bookingStep === "confirm" && yesNo(text)) {
       commands = [{ cmd: "set_slot", slot: "confirm", value: yesNo(text)! }];
       trace.plannerSkipped = "deterministic_confirm";
-    } else if (bookingStep && bookingStep !== "done" && bookingStep !== "change" && quickReplyValue(bookingStep, text) !== null) {
-      commands = [{ cmd: "set_slot", slot: bookingStep, value: quickReplyValue(bookingStep, text)! }];
+    } else if (tappedTime) {
+      commands = [{ cmd: "set_slot", slot: SLOT_STEP, value: text }];
+      trace.plannerSkipped = "deterministic_option";
+    } else if (bookingStep && bookingStep !== "done" && bookingStep !== "change" && quickReplyValue(def, bookingStep, text) !== null) {
+      commands = [{ cmd: "set_slot", slot: bookingStep, value: quickReplyValue(def, bookingStep, text)! }];
       trace.plannerSkipped = "deterministic_option";
     } else if ((offerPending() || askTeamPending() || askedAnythingElse()) && OFFER_DECLINE.test(text)) {
       result.act = "acknowledged";
@@ -289,7 +286,7 @@ export async function runExecutor(ctx: TurnContext, deps: ExecutorDeps, emit: Em
       trace.plannerSkipped = "affirmation";
       if (mayOffer() && (ctx.answeredBefore ?? 0) > 0) {
         trace.guardrails.push({ rule: "booking_offer", result: "hit", detail: "on thanks" });
-        out.template("suggest", T.ACKNOWLEDGE_WITH_OFFER, [], T.OFFER_OPTIONS);
+        out.template("suggest", pack.acknowledgeWithOffer, [], T.OFFER_OPTIONS);
       } else {
         out.template("acknowledge", T.ACKNOWLEDGE);
       }
@@ -297,21 +294,21 @@ export async function runExecutor(ctx: TurnContext, deps: ExecutorDeps, emit: Em
     } else if (!ctx.flow && isGreeting(text)) {
       result.act = "acknowledged";
       trace.plannerSkipped = "greeting";
-      out.template("acknowledge", T.GREET_BACK, [], T.GREET_OPTIONS);
+      out.template("acknowledge", T.GREET_BACK, [], pack.greetOptions);
       return finish();
     } else if (!bookingStep && OPEN_NOW.test(text) && (await openNow())) {
       return finish();
     } else if (!bookingStep && PRICE_TOPIC.test(text)) {
       result.act = "clarify";
       trace.plannerSkipped = "price_topic";
-      const chunks = await deps.retrieve("treatments and prices", bundle);
+      const chunks = await deps.retrieve(pack.price.query, bundle);
       const page = chunks.find((c) => /price/i.test(c.page)) ?? chunks[0];
-      out.template("clarify", T.PRICE_LEAD, page ? [sourceOf(page)] : [], T.PRICE_OPTIONS);
+      out.template("clarify", pack.price.lead, page ? [sourceOf(page)] : [], pack.price.options);
       return finish();
-    } else if (bookingStep && bookingStep !== "done" && asksForFixedTime(text)) {
+    } else if (bookingStep && bookingStep !== "done" && bookingStep !== SLOT_STEP && asksForFixedTime(text)) {
       timeNoteOnly = true;
       trace.plannerSkipped = "booking_time_note";
-      out.template("flow", BOOKING_TIME_NOTE);
+      out.template("flow", def.timeNote);
     } else {
       try {
         const planned = await deps.plan(ctx);
@@ -322,13 +319,13 @@ export async function runExecutor(ctx: TurnContext, deps: ExecutorDeps, emit: Em
       } catch (err) {
         trace.error = `planner: ${(err as Error).message}`;
         result.act = "error";
-        out.template("error", T.technicalProblem(practice));
+        out.template("error", pack.technicalProblem(practice));
         return finish();
       }
     }
   }
 
-  const { kept, dropped } = normaliseCommands(commands, ctx.flow);
+  const { kept, dropped } = normaliseCommands(commands, ctx.flow, def.slots);
   trace.rejected.push(...dropped);
   commands = kept;
 
@@ -357,16 +354,27 @@ export async function runExecutor(ctx: TurnContext, deps: ExecutorDeps, emit: Em
         await answer(c.query);
         break;
       case "start_flow":
-        flow = startBooking();
+        flow = startBooking(def);
         flowTouched = true;
         break;
       case "set_slot": {
         if (!flow || flow.name !== "booking_request") break;
-        const v = validateSlot(c.slot, c.value);
         flowTouched = true;
+        if (c.slot === SLOT_STEP) {
+          const picked = pickTime(flow, c.value);
+          if (picked) {
+            flow = applyBookingSlot(def, flow, SLOT_STEP, picked === "none" ? "none" : picked.label);
+            if (picked !== "none") flow.slots = { ...flow.slots, slot_id: picked.id, slot_start: picked.start };
+          } else {
+            invalidSlot = SLOT_STEP;
+            trace.guardrails.push({ rule: "slot_validation", result: "hit", detail: `${SLOT_STEP}: not one of the times offered` });
+          }
+          break;
+        }
+        const v = def.validate(c.slot, c.value);
         if (v.ok) {
           const value = c.slot === "preferred_time" ? withDates(v.value, new Date(now()), TIME_ZONE) : v.value;
-          flow = applyBookingSlot(flow, c.slot, value);
+          flow = applyBookingSlot(def, flow, c.slot, value);
         } else {
           invalidSlot = c.slot;
           trace.guardrails.push({ rule: "slot_validation", result: "hit", detail: `${c.slot}: ${v.error}` });
@@ -386,7 +394,7 @@ export async function runExecutor(ctx: TurnContext, deps: ExecutorDeps, emit: Em
       case "cannot_handle":
         result.act = c.reason === "out_of_scope" ? "out_of_scope" : "cannot_handle";
         if (c.reason === "abusive") trace.guardrails.push({ rule: "abuse", result: "blocked" });
-        out.template("cannot_handle", T.cannotHandle(practice, c.reason), [], c.reason === "out_of_scope" ? T.STEER_BACK_OPTIONS : []);
+        out.template("cannot_handle", pack.cannotHandle(practice, c.reason), [], c.reason === "out_of_scope" ? pack.steerBackOptions : []);
         break;
       case "handover":
         doHandover(c.reason, handoverTrigger);
@@ -396,28 +404,48 @@ export async function runExecutor(ctx: TurnContext, deps: ExecutorDeps, emit: Em
 
   if (flow?.name === "booking_request") {
     if (flow.slots.confirm === "yes") {
-      result.booking = { ...flow.slots };
-      out.template("flow", bookingDone(flow.slots));
+      const { offered: _offered, ...details } = flow.slots;
+      result.booking = details;
+      const booked = flow.slots.slot_id && pack.online ? await bookTime(flow) : null;
+      result.bookedOnline = booked;
+      out.template(
+        "flow",
+        booked ? pack.online!.booked(flow.slots, practice) : flow.slots.slot_id && pack.online ? pack.online.failed(flow.slots) : def.done(flow.slots),
+      );
       flow = null;
       result.act = "flow_completed";
       result.topic ??= "flow:booking_request";
     } else if (flow.slots.confirm === "no") {
       const { confirm: _drop, ...rest } = flow.slots;
       flow = { ...flow, step: "change", slots: rest };
-      out.template("flow", BOOKING_CHANGE_PROMPT);
+      out.template("flow", def.changePrompt);
       result.act = "flow";
     } else {
-      const step = nextBookingStep(flow);
+      let step = nextBookingStep(def, flow, bctx);
+      if (step === SLOT_STEP && !flow.slots.offered) {
+        const times = await findTimes(flow);
+        if (times.length) {
+          flow = { ...flow, slots: { ...flow.slots, offered: JSON.stringify(times) } };
+        } else {
+          out.template("flow", pack.online!.noTimes);
+          flow = applyBookingSlot(def, flow, SLOT_STEP, "none");
+          step = nextBookingStep(def, flow, bctx);
+        }
+      }
       if (step !== "done") {
         flow = { ...flow, step };
-        const invalid = invalidSlot && invalidSlot === step && BOOKING_INVALID[step];
-        if (step === "nhs_route" && !invalid && !rebook) await answer("Are you taking new NHS patients?", { quiet: true });
+        const invalid = invalidSlot !== null && invalidSlot === step && (step === SLOT_STEP || Boolean(def.invalid[step]));
+        const context = def.contextQuery[step];
+        if (context && !invalid && !rebook) await answer(context, { quiet: true });
+        const ask = step === SLOT_STEP ? pack.online!.slotPrompt(flow.slots) : bookingPrompt(def, step, flow.slots);
         const prompt = invalid
-          ? BOOKING_INVALID[step]!
+          ? step === SLOT_STEP
+            ? pack.online!.slotInvalid
+            : def.invalid[step]!
           : rebook && step === "confirm"
-            ? BOOKING_READY
-            : `${rebook ? `${BOOKING_CONTINUE} ` : ""}${bookingPrompt(step, flow.slots)}`;
-        out.template("flow", prompt, [], bookingOptions(step));
+            ? def.ready
+            : `${rebook ? `${def.continue} ` : ""}${ask}`;
+        out.template("flow", prompt, [], step === SLOT_STEP ? timeOptions(flow) : bookingOptions(def, step));
         if (result.answered === 0 || flowTouched) result.act = "flow";
       }
       result.topic ??= "flow:booking_request";
@@ -426,9 +454,9 @@ export async function runExecutor(ctx: TurnContext, deps: ExecutorDeps, emit: Em
   result.flow = flow;
 
   const answeredTotal = (ctx.answeredBefore ?? 0) + result.answered;
-  if (!flow && result.act === "answered" && result.answered > 0 && mayOffer() && (answeredTotal >= 2 || VISIT_INTENT.test(text))) {
+  if (!flow && result.act === "answered" && result.answered > 0 && mayOffer() && (answeredTotal >= 2 || pack.visitIntent.test(text))) {
     trace.guardrails.push({ rule: "booking_offer", result: "hit", detail: answeredTotal >= 2 ? "second answer" : "visit question" });
-    out.template("suggest", T.BOOKING_OFFER, [], T.OFFER_OPTIONS);
+    out.template("suggest", pack.bookingOffer, [], T.OFFER_OPTIONS);
   }
 
   if (out.segments.length === 0) {
@@ -444,9 +472,15 @@ export async function runExecutor(ctx: TurnContext, deps: ExecutorDeps, emit: Em
       : reason === "clinical_advice"
         ? bundle.handoverSources.clinical
         : [];
-    out.template("handover", T.handoverMessage(practice, reason), sources);
+    out.template("handover", pack.handoverMessage(practice, reason), sources);
     const details =
-      trigger === "visitor_button" ? null : T.isUrgentReason(reason) ? T.URGENT_DETAILS : reason === "visitor_request" && BILLING.test(text) ? T.BILLING_DETAILS : null;
+      trigger === "visitor_button"
+        ? null
+        : T.isUrgentReason(reason)
+          ? pack.urgentDetails
+          : reason === "visitor_request" && BILLING.test(text)
+            ? pack.billingDetails
+            : null;
     const contact = startContact(knownContact(ctx.flow, text), details);
     if (contact.prompt) out.template("flow", contact.prompt, [], contact.options);
     result.handover = { reason, trigger };
@@ -487,7 +521,54 @@ export async function runExecutor(ctx: TurnContext, deps: ExecutorDeps, emit: Em
 
   function offerPending() {
     const lastBot = ctx.history.findLast((h) => h.role === "bot")?.text;
-    return lastBot === T.BOOKING_OFFER || lastBot === T.ACKNOWLEDGE_WITH_OFFER;
+    return lastBot === pack.bookingOffer || lastBot === pack.acknowledgeWithOffer;
+  }
+
+  function nextStepOf(f: FlowState) {
+    if (f.step === "change") return "change" as const;
+    return nextBookingStep(def, f, bctx);
+  }
+
+  /** Free times from the booking system for what the visitor asked for; none when it can't be reached. */
+  async function findTimes(f: FlowState): Promise<OfferedSlot[]> {
+    const system = deps.booking!;
+    const hours = f.slots.patch_test === "needed" ? PATCH_TEST_HOURS : MIN_NOTICE_HOURS;
+    try {
+      const times = await system.availability({
+        service: f.slots.service ?? "",
+        stylist: f.slots.stylist ?? null,
+        earliest: new Date(now() + hours * 3_600_000),
+        preferredTime: f.slots.preferred_time ?? null,
+        partOfDay: f.slots.time_of_day ?? null,
+        timeZone: TIME_ZONE,
+      });
+      trace.guardrails.push({ rule: "booking_system", result: times.length ? "pass" : "hit", detail: `${system.name}: ${times.length} free time(s)` });
+      return times.slice(0, 3);
+    } catch (err) {
+      trace.guardrails.push({ rule: "booking_system", result: "hit", detail: `${system.name} availability failed: ${(err as Error).message}` });
+      return [];
+    }
+  }
+
+  async function bookTime(f: FlowState): Promise<BookedAppointment | null> {
+    const system = deps.booking;
+    const slot = offeredTimes(f).find((o) => o.id === f.slots.slot_id);
+    if (!system || !slot) return null;
+    const note = [
+      "Booked by the website assistant.",
+      f.slots.length ? `Hair: ${f.slots.length}.` : "",
+      f.slots.patch_test === "needed" ? "Patch test needed at least 48 hours before." : "",
+    ]
+      .filter(Boolean)
+      .join(" ");
+    try {
+      const booked = await system.book({ slot, service: f.slots.service ?? "", client: { name: f.slots.name ?? "", phone: f.slots.phone ?? "" }, note });
+      trace.guardrails.push({ rule: "booking_system", result: "pass", detail: `${system.name}: booked ${booked.ref}` });
+      return booked;
+    } catch (err) {
+      trace.guardrails.push({ rule: "booking_system", result: "hit", detail: `${system.name} booking failed: ${(err as Error).message}` });
+      return null;
+    }
   }
 
   /** `quiet` serves the answer only if one is found, for context inside a flow, where a fallback would interrupt it. */
@@ -554,7 +635,7 @@ export async function runExecutor(ctx: TurnContext, deps: ExecutorDeps, emit: Em
         trace.guardrails.push({ rule: "off_topic", result: "dropped", detail: `"${query}" vs ${cited[0]!.heading}` });
         return;
       }
-      for (const check of [checkGrounding(s.text, citedText), clinicalOutputCheck(s.text)]) {
+      for (const check of [checkGrounding(s.text, citedText), clinicalOutputCheck(s.text, pack.unsafeOutput)]) {
         if (!check.ok) {
           blocked += 1;
           trace.guardrails.push({ rule: check.rule, result: "dropped", detail: `${check.detail} in "${s.text.slice(0, 100)}"` });
@@ -627,9 +708,43 @@ export function sharesTopic(query: string, citedText: string): boolean {
   return distinctive.some((w) => haystack.includes(w.length > 5 ? w.slice(0, 5) : w));
 }
 
-function nextStepOf(flow: FlowState) {
-  if (flow.step === "change") return "change" as const;
-  return nextBookingStep(flow);
+function offeredTimes(flow: FlowState): OfferedSlot[] {
+  try {
+    return flow.slots.offered ? (JSON.parse(flow.slots.offered) as OfferedSlot[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+function timeOptions(flow: FlowState): string[] {
+  const offered = offeredTimes(flow);
+  return offered.length ? [...offered.map((o) => o.label), NONE_OF_THESE] : [];
+}
+
+export const NONE_OF_THESE = "None of these suit me";
+
+/** "1", "the second one", "last": a choice by position, when the visitor doesn't repeat the time. */
+const ORDINALS = [
+  /^(?:the )?(?:1|1st|first|top)(?: one| time)?(?: please)?[.!]?$/,
+  /^(?:the )?(?:2|2nd|second|middle)(?: one| time)?(?: please)?[.!]?$/,
+  /^(?:the )?(?:3|3rd|third)(?: one| time)?(?: please)?[.!]?$/,
+  /^(?:the )?(?:last)(?: one| time)?(?: please)?[.!]?$/,
+];
+
+/** The offered time the visitor chose, "none" when none suit, or null when it isn't clear. */
+export function pickTime(flow: FlowState, text: string): OfferedSlot | "none" | null {
+  const offered = offeredTimes(flow);
+  const t = text.trim().toLowerCase();
+  if (!t || offered.length === 0) return null;
+  const exact = offered.find((o) => o.label.toLowerCase() === t);
+  if (exact) return exact;
+  if (t === NONE_OF_THESE.toLowerCase() || NO_TIME_SUITS.test(t)) return "none";
+  const nth = ORDINALS.findIndex((re) => re.test(t));
+  if (nth >= 0) return (nth === 3 ? offered.at(-1) : offered[nth]) ?? null;
+  const words = t.match(/[a-z0-9:]+/g)?.filter((w) => w.length > 1 && !["with", "the", "at", "on", "please", "one", "that", "ok"].includes(w)) ?? [];
+  if (words.length === 0) return null;
+  const matches = offered.filter((o) => words.every((w) => o.label.toLowerCase().includes(w)));
+  return matches.length === 1 ? matches[0]! : null;
 }
 
 function round(n: number) {

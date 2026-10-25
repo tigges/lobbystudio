@@ -29,6 +29,7 @@ const STEPS = [
     body: [
       "Handovers is the console's start page. Chats waiting for you are listed first: “visitor replied” means the visitor has answered you, and “open” means nobody has replied yet. The coloured label is the reason: red means pain or an emergency, so answer those first.",
       "Booking requests sit underneath. Each one is a call-back request, not a confirmed appointment: phone the visitor, agree a time, and book it in your practice system.",
+      "For a business that books online, such as the demo salon, the list is called Bookings. “Booked” ones are already in the diary, with the booking system's reference; “Call back” ones are visitors for whom no offered time suited or the booking system couldn't be reached, so phone them as above.",
       "The page refreshes itself every few seconds, so you can leave it open.",
     ],
   },
@@ -77,6 +78,8 @@ const STEPS = [
     img: "07-turn-ledger.webp",
     body: [
       "The conversation inspector shows the chat on the left and the turn ledger on the right: for each visitor message, what the assistant decided to do, which page sections it found, which safety checks ran, and what it cost.",
+      "Each turn reads left to right as a decision path: the safety check, who decided (the AI planner, or a named fixed rule such as “Opening hours” that answers without it), the commands, the sources with their scores, the checks that fired, and the reply with the quick replies it offered. The JSON is under “Raw details”.",
+      "The flow map above the ledger shows each booking and handover step by step: the turns spent on each step (↺ when a step was asked again), greyed steps that were skipped, and where it ended, such as “Request sent” or “Stopped at Phone”. Click a turn number to open that turn.",
       "Personal details are stored as tokens such as ‹NAME_1›, exactly as the AI saw them. Use the ledger to see why an answer was wrong, then send the conversation link to the person who looks after the assistant's set-up.",
     ],
   },

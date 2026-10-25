@@ -1,7 +1,7 @@
 import Link from "next/link";
-import { careSummary, listBookingRequests, listHandovers, timeSummary } from "@dental-bot/core";
+import { businessById, listBookingRequests, listHandovers, packFor } from "@dental-bot/core";
 import { label, REASON_STYLE, when } from "@/lib/format";
-import { SITE_TENANT } from "@/lib/site";
+import { currentTenant } from "@/lib/business";
 import { AutoRefresh } from "../ui";
 
 export const metadata = { title: "Handovers" };
@@ -19,7 +19,11 @@ function displayStatus(h: Row) {
 const needsReply = (h: Row) => ["open", "visitor replied"].includes(displayStatus(h));
 
 export default async function HandoversPage() {
-  const [handovers, bookings] = await Promise.all([listHandovers(SITE_TENANT), listBookingRequests(SITE_TENANT)]);
+  const tenant = await currentTenant();
+  const business = businessById(tenant);
+  const columns = packFor(business?.vertical).booking.columns;
+  const online = business?.booking.mode === "online";
+  const [handovers, bookings] = await Promise.all([listHandovers(tenant), listBookingRequests(tenant)]);
   const sorted = [...handovers].sort((a, b) => STATUS_ORDER[displayStatus(a)]! - STATUS_ORDER[displayStatus(b)]!);
   const open = handovers.filter(needsReply).length;
 
@@ -54,24 +58,26 @@ export default async function HandoversPage() {
       </section>
 
       <section>
-        <h2 className="mb-4 text-xl font-semibold text-slate-900">Booking requests</h2>
+        <h2 className="mb-4 text-xl font-semibold text-slate-900">{online ? "Bookings" : "Booking requests"}</h2>
         <div className="overflow-x-auto rounded-xl bg-white ring-1 ring-slate-200">
           <table className="w-full text-left text-sm">
             <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
               <tr>
                 <th className="px-4 py-2">Name</th>
                 <th className="px-4 py-2">Phone</th>
-                <th className="px-4 py-2">Reason</th>
-                <th className="px-4 py-2">Patient</th>
-                <th className="px-4 py-2">NHS / private</th>
-                <th className="px-4 py-2">Preferred time</th>
+                {columns.map((col) => (
+                  <th key={col.title} className="px-4 py-2">
+                    {col.title}
+                  </th>
+                ))}
+                {online && <th className="px-4 py-2">Outcome</th>}
                 <th className="px-4 py-2">Received</th>
               </tr>
             </thead>
             <tbody>
               {bookings.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="px-4 py-6 text-slate-500">
+                  <td colSpan={columns.length + (online ? 4 : 3)} className="px-4 py-6 text-slate-500">
                     No booking requests yet.
                   </td>
                 </tr>
@@ -84,10 +90,22 @@ export default async function HandoversPage() {
                     </Link>
                   </td>
                   <td className="px-4 py-2.5">{b.slots.phone ?? "—"}</td>
-                  <td className="px-4 py-2.5">{b.slots.reason ?? "—"}</td>
-                  <td className="px-4 py-2.5">{b.slots.patient ?? "—"}</td>
-                  <td className="px-4 py-2.5">{b.slots.care ? careSummary(b.slots) : "—"}</td>
-                  <td className="px-4 py-2.5">{b.slots.preferred_time ? timeSummary(b.slots) : "—"}</td>
+                  {columns.map((col) => (
+                    <td key={col.title} className="px-4 py-2.5">
+                      {col.value(b.slots) ?? "—"}
+                    </td>
+                  ))}
+                  {online && (
+                    <td className="px-4 py-2.5">
+                      {b.channel === "online" ? (
+                        <span className="whitespace-nowrap rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700 ring-1 ring-emerald-100" title={b.system ?? ""}>
+                          Booked · {b.externalRef}
+                        </span>
+                      ) : (
+                        <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700 ring-1 ring-amber-100">Call back</span>
+                      )}
+                    </td>
+                  )}
                   <td className="px-4 py-2.5 text-slate-500">{when(b.createdAt)}</td>
                 </tr>
               ))}

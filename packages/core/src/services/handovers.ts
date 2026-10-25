@@ -1,5 +1,6 @@
 import { and, asc, desc, eq, gt } from "drizzle-orm";
-import { conversations, getDb, handovers, labelledAnswers, messages } from "@dental-bot/db";
+import { conversations, getDb, handovers, labelledAnswers, messages, tenants } from "@dental-bot/db";
+import { packFor } from "../packs/index.ts";
 import { tokeniseForConversation } from "../pii/vault.ts";
 import { loadConversation } from "./conversations.ts";
 
@@ -101,6 +102,7 @@ export async function setHandoverContact(opts: { tenantId: string; conversationI
 export async function releaseToBot(opts: { tenantId: string; conversationId: string; now?: Date }) {
   const db = getDb();
   const now = opts.now ?? new Date();
+  const [tenant] = await db.select({ vertical: tenants.vertical }).from(tenants).where(eq(tenants.id, opts.tenantId));
   await db
     .update(conversations)
     .set({ status: "active", flow: null, lastActivityAt: now })
@@ -114,7 +116,7 @@ export async function releaseToBot(opts: { tenantId: string; conversationId: str
     conversationId: opts.conversationId,
     role: "system",
     kind: "released",
-    text: "The practice team has handed you back to the assistant.",
+    text: packFor(tenant?.vertical).released,
     createdAt: now,
   });
 }

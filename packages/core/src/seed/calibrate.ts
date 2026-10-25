@@ -11,7 +11,7 @@ import { loadBundle, promotedVersionId } from "../versions.ts";
 
 loadRootEnv();
 
-const ANSWERABLE = [
+const DENTAL_ANSWERABLE = [
   "Is there parking near the practice?",
   "Is the practice step-free?",
   "How much is a hygienist appointment?",
@@ -36,7 +36,7 @@ const ANSWERABLE = [
   "can I book by email",
 ];
 
-const NOT_ANSWERABLE = [
+const DENTAL_NOT_ANSWERABLE = [
   "Do you offer treatment for sleep apnoea?",
   "Do you do botox?",
   "Can I bring my dog?",
@@ -51,7 +51,46 @@ const NOT_ANSWERABLE = [
   "Do you offer gift vouchers?",
 ];
 
-const bundle = await loadBundle(await promotedVersionId(DEFAULT_TENANT));
+const SALON_ANSWERABLE = [
+  "How much is a cut and blow-dry?",
+  "How much is balayage with a senior stylist?",
+  "Do I need a patch test?",
+  "Are you open on Mondays?",
+  "What time do you close on Saturday?",
+  "Do you take walk-ins?",
+  "How long does a full head colour take?",
+  "Is there parking?",
+  "Do you take cash?",
+  "What's your cancellation policy?",
+  "Do you cut curly hair?",
+  "Any offers on colour?",
+  "Can I bring my dog?",
+  "Who is the creative director?",
+  "What is the nearest station?",
+  "How much is a men's cut?",
+  "Do you do smoothing treatments?",
+  "Can I book by Instagram?",
+  "Do you do hair extensions?",
+  "Do you do nails?",
+  "Do you offer eyebrow threading?",
+];
+
+const SALON_NOT_ANSWERABLE = [
+  "Do you sell hair dryers?",
+  "Do you do wedding hair trials?",
+  "Is Hana married?",
+  "Who won the football?",
+  "Do you do perms?",
+  "Do you do bridal makeup?",
+  "Do you have a loyalty card?",
+  "What languages do you speak?",
+  "Can I pay with Klarna?",
+];
+
+const tenantId = process.argv[2] ?? DEFAULT_TENANT;
+const [ANSWERABLE, NOT_ANSWERABLE] =
+  tenantId === "mikan-hair" ? [SALON_ANSWERABLE, SALON_NOT_ANSWERABLE] : [DENTAL_ANSWERABLE, DENTAL_NOT_ANSWERABLE];
+const bundle = await loadBundle(await promotedVersionId(tenantId));
 const report = async (label: string, qs: string[]) => {
   console.log(`\n${label}`);
   const scores: number[] = [];

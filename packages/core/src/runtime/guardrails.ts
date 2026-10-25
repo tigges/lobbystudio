@@ -1,8 +1,8 @@
 import type { HandoverReason } from "./commands.ts";
 
-type Rule = { reason: HandoverReason; pattern: RegExp };
+export type PrecheckRule = { reason: HandoverReason; pattern: RegExp };
 
-const PRECHECK_RULES: Rule[] = [
+export const DENTAL_PRECHECK: PrecheckRule[] = [
   {
     reason: "emergency",
     pattern:
@@ -23,8 +23,8 @@ const PRECHECK_RULES: Rule[] = [
 export type PrecheckResult = { hit: false } | { hit: true; reason: HandoverReason; matched: string };
 
 /** Deterministic and runs before the planner: these always hand over, whatever the model would say. */
-export function clinicalPrecheck(text: string): PrecheckResult {
-  for (const rule of PRECHECK_RULES) {
+export function clinicalPrecheck(text: string, rules: PrecheckRule[] = DENTAL_PRECHECK): PrecheckResult {
+  for (const rule of rules) {
     const m = rule.pattern.exec(text);
     if (m) return { hit: true, reason: rule.reason, matched: m[0] };
   }
@@ -103,10 +103,10 @@ export function checkGrounding(sentence: string, citedText: string): GroundingCh
   return { ok: true };
 }
 
-const CLINICAL_OUTPUT =
+export const CLINICAL_OUTPUT =
   /\b(you should (take|use|rinse|apply|try)|take (some )?(ibuprofen|paracetamol|painkillers?|antibiotics?)|rinse with|salt water|apply (ice|a cold)|it (is|sounds|could be) (probably |likely )?(an? )?(infection|abscess|decay|normal|nothing))\b/i;
 
-export function clinicalOutputCheck(sentence: string): GroundingCheck {
-  const m = CLINICAL_OUTPUT.exec(sentence);
+export function clinicalOutputCheck(sentence: string, pattern: RegExp = CLINICAL_OUTPUT): GroundingCheck {
+  const m = pattern.exec(sentence);
   return m ? { ok: false, rule: "clinical_output", detail: m[0] } : { ok: true };
 }

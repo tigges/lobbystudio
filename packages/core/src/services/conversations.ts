@@ -89,8 +89,16 @@ export async function conversationDetail(tenantId: string, conversationId: strin
       .sort(([a], [b]) => Number(a.replace(/\D/g, "")) - Number(b.replace(/\D/g, "")))
       .at(-1)?.[1];
   const labels = await labelsForConversation(tenantId, conversationId);
+  const replies = new Map<number, { kind: string; text: string; options: string[] }[]>();
+  const replyRows = await db
+    .select({ turnId: messages.turnId, kind: messages.kind, text: messages.text, options: messages.options })
+    .from(messages)
+    .where(and(eq(messages.tenantId, tenantId), eq(messages.conversationId, conversationId), eq(messages.role, "bot")))
+    .orderBy(asc(messages.id));
+  for (const m of replyRows) if (m.turnId !== null) replies.set(m.turnId, [...(replies.get(m.turnId) ?? []), { kind: m.kind, text: m.text, options: m.options }]);
   return {
     labels,
+    replies,
     typedContact: { name: lastOfKind("NAME"), phone: lastOfKind("PHONE") },
     conversation: conv,
     versionNumber: version?.number ?? null,

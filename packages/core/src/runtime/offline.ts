@@ -1,5 +1,6 @@
 import type { Command } from "./commands.ts";
-import { nextBookingStep } from "./flows/booking-request.ts";
+import { packFor } from "../packs/index.ts";
+import { nextBookingStep } from "./flows/booking.ts";
 import { yesNo } from "./guardrails.ts";
 import type { ComposeResult, PlannerResult, ScoredChunk, TurnContext } from "./types.ts";
 
@@ -9,8 +10,8 @@ import type { ComposeResult, PlannerResult, ScoredChunk, TurnContext } from "./t
  */
 
 const BOOK = /\b(book|booking|appointment|make an appt|come in|register|sign up)\b/i;
-const PERSON = /\b(speak|talk) (to|with) (someone|a person|a human|reception|the practice|staff)|\breal person\b|\bhuman\b|\bcall me back\b/i;
-const COMPLAINT = /\b(complain|complaint|refund|unhappy with my treatment)\b/i;
+const PERSON = /\b(speak|talk) (to|with) (someone|a person|a human|reception|the practice|the salon|staff)|\breal person\b|\bhuman\b|\bcall me back\b/i;
+const COMPLAINT = /\b(complain|complaint|refund|unhappy with my (treatment|colou?r|cut|hair)|(ruined|hate) my hair)\b/i;
 const RECORD = /\b(my (records?|x-?rays?|results|notes|account|bill|invoice))\b/i;
 const OFF_TOPIC = /\b(weather|football|recipe|capital of|joke|bitcoin|stock market|write me|poem)\b/i;
 const QUESTION_START = /^(how|what|when|where|which|who|why|do|does|did|are|is|can|could|will|would|should)\b/i;
@@ -27,49 +28,31 @@ function splitQuestions(text: string): string[] {
   return parts.length ? parts.slice(0, 3) : [text.trim()];
 }
 
-function reasonFrom(text: string): string | null {
-  if (/hygien/i.test(text)) return "Hygienist appointment";
-  if (/whiten/i.test(text)) return "Whitening consultation";
-  if (/implant/i.test(text)) return "Implant consultation";
-  if (/aligner|invisalign|straighten/i.test(text)) return "Clear aligner consultation";
-  if (/check[- ]?up|exam/i.test(text)) return "Check-up";
-  return null;
-}
-
 export async function offlinePlan(ctx: TurnContext): Promise<PlannerResult> {
   const text = (ctx.visitorText ?? "").trim();
   const commands: Command[] = [];
+  const def = packFor(ctx.bundle.vertical).booking;
 
   if (PERSON.test(text)) commands.push({ cmd: "handover", reason: "visitor_request" });
   else if (COMPLAINT.test(text)) commands.push({ cmd: "handover", reason: "complaint" });
   else if (RECORD.test(text)) commands.push({ cmd: "handover", reason: "patient_record" });
   else if (OFF_TOPIC.test(text)) commands.push({ cmd: "cannot_handle", reason: "out_of_scope" });
   else if (ctx.flow?.name === "booking_request" && !looksLikeQuestion(text)) {
-    const step = ctx.flow.step === "change" ? null : nextBookingStep(ctx.flow);
+    const step = ctx.flow.step === "change" ? null : nextBookingStep(def, ctx.flow, { online: ctx.bundle.booking?.mode === "online" });
     if (step === "confirm") {
       const yn = yesNo(text);
       if (yn) commands.push({ cmd: "set_slot", slot: "confirm", value: yn });
     } else if (step && step !== "done") {
       commands.push({ cmd: "set_slot", slot: step, value: text });
     } else if (ctx.flow.step === "change") {
-      const slot = /phone|number/i.test(text)
-        ? "phone"
-        : /name/i.test(text)
-          ? "name"
-          : /nhs|private/i.test(text)
-            ? "care"
-            : /new|existing/i.test(text)
-              ? "patient"
-              : /time|day/i.test(text)
-                ? "preferred_time"
-                : "reason";
+      const slot = def.changeSlot(text);
       const value = text.replace(/^.*?\b(?:to|is)\b\s*/i, "");
       if (value && value !== text) commands.push({ cmd: "set_slot", slot, value });
     }
   } else if (BOOK.test(text) && !looksLikeQuestion(text.replace(/^(can|could) i\b/i, ""))) {
     commands.push({ cmd: "start_flow", flow: "booking_request" });
-    const reason = reasonFrom(text);
-    if (reason) commands.push({ cmd: "set_slot", slot: "reason", value: reason });
+    const first = def.firstValueFrom(text);
+    if (first) commands.push({ cmd: "set_slot", slot: def.slots[0]!, value: first });
   } else {
     for (const q of splitQuestions(text)) commands.push({ cmd: "answer_from_knowledge", query: q });
   }

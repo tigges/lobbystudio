@@ -1,11 +1,19 @@
 import type { Metadata } from "next";
+import { businessById } from "@dental-bot/core";
+import { brandFor } from "@/lib/brands";
+import { currentTenant } from "@/lib/business";
 import "./globals.css";
 
-export const metadata: Metadata = {
-  title: { default: "Harbour Dental · demo practice", template: "%s · Harbour Dental (demo)" },
-  description: "A fictitious dental practice used to demonstrate the dental-bot assistant.",
-  robots: { index: false, follow: false },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const tenant = await currentTenant();
+  const name = businessById(tenant)?.name ?? "Harbour Dental";
+  const brand = brandFor(tenant);
+  return {
+    title: { default: `${name} · ${brand.disclaimerTitle.toLowerCase()}`, template: `%s · ${name} (demo)` },
+    description: brand.description,
+    robots: { index: false, follow: false },
+  };
+}
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (

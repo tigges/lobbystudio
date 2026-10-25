@@ -1,12 +1,13 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { conversationDetail, listConversations, REVIEW_STATES, reviewState } from "@dental-bot/core";
+import { businessById, conversationDetail, flowRuns, listConversations, packFor, REVIEW_STATES, reviewState } from "@dental-bot/core";
 import { reviewedAction } from "../../actions";
 import { label, OUTCOME_STYLE, when } from "@/lib/format";
-import { SITE_TENANT } from "@/lib/site";
+import { currentTenant } from "@/lib/business";
 import { ActionedForm, LabelChip, LabelForm } from "../../labels";
 import { Transcript } from "../../transcript";
 import { AdminNote } from "../../ui";
+import { DecisionPath, FlowMap } from "./decision";
 
 export const metadata = { title: "Conversation" };
 
@@ -35,9 +36,12 @@ export default async function ConversationPage({
   const { id } = await params;
   const focus = (await searchParams).turn;
   if (!UUID_RE.test(id)) notFound();
-  const detail = await conversationDetail(SITE_TENANT, id);
+  const tenant = await currentTenant();
+  const detail = await conversationDetail(tenant, id);
   if (!detail) notFound();
-  const { conversation: c, messages, turns, bookings, versionNumber, labels } = detail;
+  const { conversation: c, messages, turns, bookings, versionNumber, labels, replies } = detail;
+  const def = packFor(businessById(tenant)?.vertical).booking;
+  const runs = flowRuns(turns, messages.some((m) => m.role === "staff"), def);
   const path = `/console/conversations/${c.id}`;
   const labelled = turns.filter((t) => labels.has(t.id)).length;
   const totalCost = turns.reduce((s, t) => s + Number(t.costUsd), 0);
@@ -48,7 +52,7 @@ export default async function ConversationPage({
     openLabels: labelRows.filter((l) => l.label !== "good" && !l.actionedAt).length,
     actionedLabels: labelRows.filter((l) => l.actionedAt).length,
   });
-  const next = (await listConversations(SITE_TENANT, 300)).find((r) => r.id !== c.id && reviewState(r) === "to_review");
+  const next = (await listConversations(tenant, 300)).find((r) => r.id !== c.id && reviewState(r) === "to_review");
 
   return (
     <div className="space-y-6">
@@ -117,6 +121,7 @@ export default async function ConversationPage({
               </Link>
             )}
           </div>
+          <FlowMap runs={runs} path={path} />
           <p className="text-xs text-slate-500">
             Inputs are stored with personal data replaced by tokens, exactly as the model saw them. Open a turn to label it; labelling counts as
             reviewed.
@@ -148,54 +153,60 @@ export default async function ConversationPage({
                   </div>
                 )}
               </div>
-              <div className="grid gap-4 border-t border-slate-100 px-4 py-3 text-xs md:grid-cols-2">
-                <div>
-                  <p className="mb-1 font-semibold uppercase tracking-wide text-slate-500">Commands</p>
-                  <pre className="overflow-x-auto whitespace-pre-wrap rounded-lg bg-slate-50 p-2 font-mono">{JSON.stringify(t.commands, null, 1)}</pre>
-                  {t.rejectedCommands.length > 0 && (
-                    <>
-                      <p className="mb-1 mt-2 font-semibold uppercase tracking-wide text-rose-600">Rejected</p>
-                      <pre className="overflow-x-auto whitespace-pre-wrap rounded-lg bg-rose-50 p-2 font-mono">{JSON.stringify(t.rejectedCommands, null, 1)}</pre>
-                    </>
-                  )}
-                  <p className="mb-1 mt-2 font-semibold uppercase tracking-wide text-slate-500">Flow</p>
-                  <p className="font-mono text-slate-600">
-                    {t.flowBefore ? `${t.flowBefore.name}/${t.flowBefore.step}` : "none"} → {t.flowAfter ? `${t.flowAfter.name}/${t.flowAfter.step}` : "none"}
-                  </p>
-                  {t.error && <p className="mt-2 rounded bg-rose-50 p-2 text-rose-800">{t.error}</p>}
-                </div>
-                <div className="space-y-3">
+              <div className="border-t border-slate-100 px-4 py-3">
+                <DecisionPath turn={t} replies={replies.get(t.id) ?? []} def={def} />
+              </div>
+              <details className="border-t border-slate-100">
+                <summary className="cursor-pointer px-4 py-2 text-xs text-slate-500 hover:text-slate-800">Raw details</summary>
+                <div className="grid gap-4 border-t border-slate-100 px-4 py-3 text-xs md:grid-cols-2">
                   <div>
-                    <p className="mb-1 font-semibold uppercase tracking-wide text-slate-500">Retrieved</p>
-                    {t.retrieved.length === 0 && <p className="text-slate-400">none</p>}
-                    {t.retrieved.map((r) => (
-                      <p key={r.chunkId} className={USED_STYLE[r.used]}>
-                        <span className="tabular-nums">{r.score.toFixed(3)}</span> · {r.page} › {r.heading} <span className="text-slate-400">({label(r.used)})</span>
-                      </p>
-                    ))}
+                    <p className="mb-1 font-semibold uppercase tracking-wide text-slate-500">Commands</p>
+                    <pre className="overflow-x-auto whitespace-pre-wrap rounded-lg bg-slate-50 p-2 font-mono">{JSON.stringify(t.commands, null, 1)}</pre>
+                    {t.rejectedCommands.length > 0 && (
+                      <>
+                        <p className="mb-1 mt-2 font-semibold uppercase tracking-wide text-rose-600">Rejected</p>
+                        <pre className="overflow-x-auto whitespace-pre-wrap rounded-lg bg-rose-50 p-2 font-mono">{JSON.stringify(t.rejectedCommands, null, 1)}</pre>
+                      </>
+                    )}
+                    <p className="mb-1 mt-2 font-semibold uppercase tracking-wide text-slate-500">Flow</p>
+                    <p className="font-mono text-slate-600">
+                      {t.flowBefore ? `${t.flowBefore.name}/${t.flowBefore.step}` : "none"} → {t.flowAfter ? `${t.flowAfter.name}/${t.flowAfter.step}` : "none"}
+                    </p>
+                    {t.error && <p className="mt-2 rounded bg-rose-50 p-2 text-rose-800">{t.error}</p>}
                   </div>
-                  <div>
-                    <p className="mb-1 font-semibold uppercase tracking-wide text-slate-500">Guardrails</p>
-                    <div className="flex flex-wrap gap-1">
-                      {t.guardrails.length === 0 && <span className="text-slate-400">none</span>}
-                      {t.guardrails.map((g, i) => (
-                        <span key={i} title={g.detail} className={`rounded px-1.5 py-0.5 ${GUARD_STYLE[g.result]}`}>
-                          {g.rule}: {g.result}
-                        </span>
+                  <div className="space-y-3">
+                    <div>
+                      <p className="mb-1 font-semibold uppercase tracking-wide text-slate-500">Retrieved</p>
+                      {t.retrieved.length === 0 && <p className="text-slate-400">none</p>}
+                      {t.retrieved.map((r) => (
+                        <p key={r.chunkId} className={USED_STYLE[r.used]}>
+                          <span className="tabular-nums">{r.score.toFixed(3)}</span> · {r.page} › {r.heading} <span className="text-slate-400">({label(r.used)})</span>
+                        </p>
+                      ))}
+                    </div>
+                    <div>
+                      <p className="mb-1 font-semibold uppercase tracking-wide text-slate-500">Guardrails</p>
+                      <div className="flex flex-wrap gap-1">
+                        {t.guardrails.length === 0 && <span className="text-slate-400">none</span>}
+                        {t.guardrails.map((g, i) => (
+                          <span key={i} title={g.detail} className={`rounded px-1.5 py-0.5 ${GUARD_STYLE[g.result]}`}>
+                            {g.rule}: {g.result}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                    <div>
+                      <p className="mb-1 font-semibold uppercase tracking-wide text-slate-500">Model calls</p>
+                      {t.modelCalls.length === 0 && <p className="text-slate-400">none</p>}
+                      {t.modelCalls.map((m, i) => (
+                        <p key={i} className="text-slate-600">
+                          {m.role} · {m.model} · {m.inputTokens}/{m.outputTokens} tok · {m.latencyMs} ms
+                        </p>
                       ))}
                     </div>
                   </div>
-                  <div>
-                    <p className="mb-1 font-semibold uppercase tracking-wide text-slate-500">Model calls</p>
-                    {t.modelCalls.length === 0 && <p className="text-slate-400">none</p>}
-                    {t.modelCalls.map((m, i) => (
-                      <p key={i} className="text-slate-600">
-                        {m.role} · {m.model} · {m.inputTokens}/{m.outputTokens} tok · {m.latencyMs} ms
-                      </p>
-                    ))}
-                  </div>
                 </div>
-              </div>
+              </details>
             </details>
           ))}
         </section>

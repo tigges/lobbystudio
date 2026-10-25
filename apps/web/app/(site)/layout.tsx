@@ -1,24 +1,34 @@
 import Link from "next/link";
 import Script from "next/script";
+import { BusinessSwitcher } from "@/app/business-switcher";
+import { brandFor, paletteStyle } from "@/lib/brands";
 import { buildLabel } from "@/lib/build";
-import { PRACTICE, pageHref, SITE_TENANT, sitePages } from "@/lib/site";
+import { switcherOptions } from "@/lib/business";
+import { pageHref, sitePages } from "@/lib/site";
 import { NavLinks } from "./nav-links";
 
 export const dynamic = "force-dynamic";
 
 export default async function SiteLayout({ children }: { children: React.ReactNode }) {
-  const { bundle, pages } = await sitePages();
+  const { tenant, bundle, pages } = await sitePages();
+  const brand = brandFor(tenant);
   const nav = pages.map((p) => ({ href: pageHref(p.slug), label: p.navLabel }));
 
   return (
-    <div className="flex min-h-screen flex-col overflow-x-clip">
+    <div className="flex min-h-screen flex-col overflow-x-clip" style={paletteStyle(brand)}>
+      <div className="border-b border-slate-200/70 bg-slate-50">
+        <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-2 px-5 py-1.5 text-xs text-slate-500">
+          <span>Demo businesses, one assistant platform</span>
+          <BusinessSwitcher current={tenant} options={switcherOptions()} />
+        </div>
+      </div>
       <header className="sticky top-0 z-10 border-b border-slate-200/70 bg-white/90 backdrop-blur">
         <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-x-6 gap-y-2 px-5 py-3">
           <Link href="/" className="flex items-center gap-2.5">
-            <span className="grid h-9 w-9 place-items-center rounded-xl bg-harbour-600 text-sm font-bold text-white">HD</span>
+            <span className="grid h-9 w-9 place-items-center rounded-xl bg-harbour-600 text-sm font-bold text-white">{brand.initials}</span>
             <span className="leading-tight">
               <span className="block font-semibold text-harbour-900">{bundle.practice.name}</span>
-              <span className="block text-xs text-slate-500">Rotherhithe · NHS &amp; private</span>
+              <span className="block text-xs text-slate-500">{brand.tagline}</span>
             </span>
           </Link>
           <a
@@ -37,20 +47,17 @@ export default async function SiteLayout({ children }: { children: React.ReactNo
         <div className="mx-auto grid max-w-5xl gap-6 px-5 py-8 text-sm text-slate-600 sm:grid-cols-3">
           <div>
             <p className="font-semibold text-harbour-900">{bundle.practice.name}</p>
-            {PRACTICE.address.map((line) => (
+            {brand.address.map((line) => (
               <p key={line}>{line}</p>
             ))}
           </div>
           <div>
             <p>{bundle.practice.phone}</p>
-            <p>{PRACTICE.email}</p>
+            <p>{brand.email}</p>
           </div>
           <div className="rounded-xl bg-amber-50 p-3 text-amber-900 ring-1 ring-amber-200">
-            <p className="font-semibold">Demo practice</p>
-            <p>
-              Harbour Dental is fictitious. The address, phone number, staff and prices are invented for a software demo.
-              Nothing here is medical advice.
-            </p>
+            <p className="font-semibold">{brand.disclaimerTitle}</p>
+            <p>{brand.disclaimer}</p>
           </div>
         </div>
         <p className="mx-auto max-w-5xl px-5 pb-4 text-xs text-slate-400">
@@ -58,7 +65,7 @@ export default async function SiteLayout({ children }: { children: React.ReactNo
         </p>
       </footer>
 
-      <Script src="/widget.js" data-tenant={SITE_TENANT} data-accent="#0f6e6e" strategy="afterInteractive" />
+      <Script src="/widget.js" data-tenant={tenant} data-accent={brand.accent} strategy="afterInteractive" />
     </div>
   );
 }
