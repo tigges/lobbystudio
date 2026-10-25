@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { listBookingRequests, listHandovers } from "@dental-bot/core";
+import { careSummary, listBookingRequests, listHandovers, timeSummary } from "@dental-bot/core";
 import { label, REASON_STYLE, when } from "@/lib/format";
 import { SITE_TENANT } from "@/lib/site";
 import { AutoRefresh } from "../ui";
@@ -86,8 +86,8 @@ export default async function HandoversPage() {
                   <td className="px-4 py-2.5">{b.slots.phone ?? "—"}</td>
                   <td className="px-4 py-2.5">{b.slots.reason ?? "—"}</td>
                   <td className="px-4 py-2.5">{b.slots.patient ?? "—"}</td>
-                  <td className="px-4 py-2.5">{b.slots.care ?? "—"}</td>
-                  <td className="px-4 py-2.5">{b.slots.preferred_time ?? "—"}</td>
+                  <td className="px-4 py-2.5">{b.slots.care ? careSummary(b.slots) : "—"}</td>
+                  <td className="px-4 py-2.5">{b.slots.preferred_time ? timeSummary(b.slots) : "—"}</td>
                   <td className="px-4 py-2.5 text-slate-500">{when(b.createdAt)}</td>
                 </tr>
               ))}

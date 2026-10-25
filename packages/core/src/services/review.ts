@@ -1,5 +1,5 @@
 import { and, eq, sql, type SQL } from "drizzle-orm";
-import { getDb, messages, turnLabels, turns } from "@dental-bot/db";
+import { conversations, getDb, messages, turnLabels, turns } from "@dental-bot/db";
 import { isTurnLabel } from "../labels.ts";
 
 export type ReviewFilter = { version?: number | null; sinceDays?: number | null };
@@ -19,7 +19,40 @@ export async function setTurnLabel(opts: { tenantId: string; turnId: number; lab
   await db
     .insert(turnLabels)
     .values({ tenantId: opts.tenantId, conversationId: turn.conversationId, turnId: opts.turnId, label: opts.label, note })
-    .onConflictDoUpdate({ target: turnLabels.turnId, set: { label: opts.label, note, updatedAt: new Date() } });
+    .onConflictDoUpdate({
+      target: turnLabels.turnId,
+      // Changing the label or note reopens it: the fix it was marked against may not cover the new feedback.
+      set: {
+        label: opts.label,
+        note,
+        updatedAt: new Date(),
+        actionedAt: sql`case when ${turnLabels.label} = excluded.label and ${turnLabels.note} is not distinct from excluded.note then ${turnLabels.actionedAt} end`,
+        actionedIn: sql`case when ${turnLabels.label} = excluded.label and ${turnLabels.note} is not distinct from excluded.note then ${turnLabels.actionedIn} end`,
+      },
+    });
+  await setConversationReviewed({ tenantId: opts.tenantId, conversationId: turn.conversationId, reviewed: true, keepEarlier: true });
+}
+
+export async function setConversationReviewed(opts: { tenantId: string; conversationId: string; reviewed: boolean; keepEarlier?: boolean }) {
+  await getDb()
+    .update(conversations)
+    .set({ reviewedAt: opts.reviewed ? (opts.keepEarlier ? sql`coalesce(${conversations.reviewedAt}, now())` : new Date()) : null })
+    .where(and(eq(conversations.tenantId, opts.tenantId), eq(conversations.id, opts.conversationId)));
+}
+
+/** Marks labels as addressed by a release (or reopens them), so they drop out of the review queue. */
+export async function setLabelsActioned(opts: { tenantId: string; turnIds: number[]; actioned: boolean; build?: string | null }) {
+  if (opts.turnIds.length === 0) return;
+  await getDb()
+    .update(turnLabels)
+    .set(opts.actioned ? { actionedAt: new Date(), actionedIn: opts.build ?? null } : { actionedAt: null, actionedIn: null })
+    .where(
+      and(
+        eq(turnLabels.tenantId, opts.tenantId),
+        sql`${turnLabels.turnId} in (${sql.join(opts.turnIds.map((id) => sql`${id}`), sql`, `)})`,
+        sql`${turnLabels.label} <> 'good'`,
+      ),
+    );
 }
 
 export async function clearTurnLabel(opts: { tenantId: string; turnId: number }) {
@@ -53,7 +86,7 @@ export type Insights = {
   replies: { kind: string; turns: number }[];
   checks: { rule: string; result: string; turns: number }[];
   handovers: { reason: string; turns: number }[];
-  labels: { label: string; turns: number }[];
+  labels: { label: string; turns: number; open: number }[];
   outcomes: { outcome: string | null; conversations: number }[];
   versions: number[];
 };
@@ -85,7 +118,7 @@ export async function insights(tenantId: string, f: ReviewFilter = {}): Promise<
     from ${turns} t, jsonb_array_elements(t.commands) c
     where ${where} and c->>'cmd' = 'handover' group by 1 order by 2 desc`);
   const labels = await rows<Insights["labels"][number]>(sql`
-    select l.label, count(*)::int as "turns"
+    select l.label, count(*)::int as "turns", count(*) filter (where l.actioned_at is null and l.label <> 'good')::int as "open"
     from ${turns} t join ${turnLabels} l on l.turn_id = t.id
     where ${where} group by 1 order by 2 desc`);
   const outcomes = await rows<Insights["outcomes"][number]>(sql`
@@ -140,6 +173,8 @@ export type GroupTurn = {
   label: string | null;
   note: string | null;
   labelledAt: Date | null;
+  actionedAt: Date | null;
+  actionedIn: string | null;
 };
 
 /**
@@ -149,6 +184,8 @@ export type GroupTurn = {
 export async function labelExport(tenantId: string) {
   return rows<Record<string, unknown>>(sql`
     select l.label, l.note, l.updated_at as "labelledAt",
+      case when l.label = 'good' then 'good' when l.actioned_at is null then 'open' else 'actioned' end as "status",
+      l.actioned_in as "actionedIn", t.id::int as "turnId",
       t.conversation_id as "conversationId", t.index as "turn", t.version_number as "assistantVersion",
       t.content_version_number as "contentVersion", t.build, t.created_at as "at",
       t.input as "visitor",
@@ -177,7 +214,8 @@ export async function groupTurns(tenantId: string, group: GroupKey, f: ReviewFil
       (select string_agg(m.text, ' ' order by m.id) from ${messages} m where m.turn_id = t.id and m.role = 'bot') as "reply",
       coalesce((select array_agg(distinct m.kind) from ${messages} m where m.turn_id = t.id and m.role = 'bot'), '{}') as "kinds",
       t.created_at as "createdAt", t.version_number as "versionNumber", t.build, t.latency_ms as "latencyMs",
-      t.cost_usd::float as "costUsd", l.label, l.note, l.updated_at as "labelledAt"
+      t.cost_usd::float as "costUsd", l.label, l.note, l.updated_at as "labelledAt",
+      l.actioned_at as "actionedAt", l.actioned_in as "actionedIn"
     from ${turns} t left join ${turnLabels} l on l.turn_id = t.id
     where ${scope(tenantId, f)} and ${predicate}
     order by t.created_at desc

@@ -58,6 +58,12 @@ export default async function HandoverPage({ params }: { params: Promise<{ id: s
             <p>Their latest message is at the bottom of the chat. This page refreshes on its own.</p>
           </div>
         )}
+        {saved.details && (
+          <div className="rounded-2xl bg-white p-4 text-sm ring-1 ring-slate-200">
+            <h2 className="mb-1 font-semibold text-slate-900">What they told the assistant</h2>
+            <p className="text-slate-800">{saved.details}</p>
+          </div>
+        )}
         {handover && (
           <div className="rounded-2xl bg-white p-4 text-sm ring-1 ring-slate-200">
             <h2 className="mb-1 font-semibold text-slate-900">Contact</h2>

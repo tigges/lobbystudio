@@ -52,6 +52,8 @@ export type TurnContext = {
   answeredBefore?: number;
   /** A booking was offered, requested or handed to the team earlier, so the bot doesn't offer again. */
   bookingOffered?: boolean;
+  /** Someone from the team has replied since the latest handover. */
+  teamReplied?: boolean;
 };
 
 export type PlannerResult = { commands: unknown; call: ModelCall | null };

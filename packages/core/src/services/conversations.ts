@@ -124,6 +124,9 @@ export async function listConversations(tenantId: string, limit = 100) {
       hadOffer: sql<boolean>`exists (select 1 from ${messages} m where m.conversation_id = "conversations"."id" and m.kind = 'suggest')`,
       hadCheck: sql<boolean>`exists (select 1 from ${turns} t, jsonb_array_elements(t.guardrails) g where t.conversation_id = "conversations"."id" and g->>'result' in ('dropped', 'blocked'))`,
       labels: sql<string[]>`coalesce((select array_agg(l.label) from ${turnLabels} l where l.conversation_id = "conversations"."id"), '{}')`,
+      reviewedAt: conversations.reviewedAt,
+      openLabels: sql<number>`(select count(*)::int from ${turnLabels} l where l.conversation_id = "conversations"."id" and l.label <> 'good' and l.actioned_at is null)`,
+      actionedLabels: sql<number>`(select count(*)::int from ${turnLabels} l where l.conversation_id = "conversations"."id" and l.actioned_at is not null)`,
     })
     .from(conversations)
     .innerJoin(versions, eq(versions.id, conversations.versionId))

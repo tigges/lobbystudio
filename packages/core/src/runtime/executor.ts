@@ -4,6 +4,8 @@ import { NO_ANSWER, parseSentence, SentenceSplitter } from "./compose.ts";
 import {
   applyBookingSlot,
   BOOKING_CHANGE_PROMPT,
+  BOOKING_CONTINUE,
+  BOOKING_READY,
   BOOKING_INVALID,
   BOOKING_SLOTS,
   BOOKING_TIME_NOTE,
@@ -14,6 +16,7 @@ import {
   quickReplyValue,
   startBooking,
   validateSlot,
+  withDates,
 } from "./flows/booking-request.ts";
 import { collectContact, isCollectingContact, knownContact, startContact } from "./flows/handover-contact.ts";
 import {
@@ -25,6 +28,7 @@ import {
   isGreeting,
   yesNo,
 } from "./guardrails.ts";
+import { OPEN_NOW, openNowAnswer, parseHours } from "./hours.ts";
 import * as T from "./templates.ts";
 import type {
   ExecutorDeps,
@@ -45,6 +49,18 @@ const TOPIC_MAX_WORDS = 3;
 /** Questions that suggest the visitor is planning a visit, so a booking offer after the first answer is welcome. */
 const VISIT_INTENT =
   /\b(?:new (?:\w+ )?patients?|regist\w*|join|taking on|accepting|how much|cost\w*|price\w*|fees?|park\w*|step-?free|wheelchair|access\w*|get there|find you|directions|first visit)\b/i;
+/** Practice-local time for "are you open now?" and for dating "tomorrow" in booking requests. */
+const TIME_ZONE = "Europe/London";
+/** A bill or payment question the team can only act on with a little more detail. */
+const BILLING = /\b(?:bills?|invoices?|payments?|paid|pay|charged?|refunds?|receipts?|statements?|balance|direct debit)\b/i;
+const RED_FLAGS = /\b(?:breath\w*|swallow\w*|eyes?|won'?t stop|can'?t stop)\b/i;
+/** "prices", "how much?" and similar: a topic, answered with a short menu rather than a guess. */
+const PRICE_TOPIC = /^(?:(?:your |the )?(?:prices?|costs?|fees?|charges?|price list)|how much(?: is it| does it cost| do you charge)?|what (?:are|do) (?:your|you) (?:prices|charge))[?.! ]*$/i;
+/** Below this match score an answer must share a distinctive word with the question, so a near topic isn't served as the answer. */
+const RELEVANCE_CHECK_BELOW = 0.75;
+const GENERIC_WORDS = new Set(
+  "about also anything appointment appointments available could dental dentist does doing have harbour help know like long make many much need offer offered offering please practice provide should tell that their there these they this treat treated treatment treatments what when where which will with would your youre".split(" "),
+);
 const OFFER_DECLINE = /^(?:not right now|not now|not yet|maybe later|no(?:,? thanks?(?: you)?)?|i'?m (?:ok|fine|good)(?:,? thanks?)?)[.! ]*$/i;
 
 class ReplyWriter {
@@ -197,10 +213,12 @@ export async function runExecutor(ctx: TurnContext, deps: ExecutorDeps, emit: Em
     result.act = "waiting";
     trace.plannerSkipped = "handed_over";
     const said = ctx.visitorText?.trim();
-    if (said && isCollectingContact(ctx.flow)) {
+    // Once someone from the team has replied, the visitor is talking to them: the bot asks nothing more.
+    if (said && isCollectingContact(ctx.flow) && !ctx.teamReplied) {
       const step = collectContact(ctx.flow, said);
       result.flow = step.flow;
       if (step.changed) result.contact = { ...step.flow.slots };
+      if (ctx.flow.step === "details" && RED_FLAGS.test(said)) out.template("handover", T.RED_FLAG_REMINDER);
       if (step.reply) out.template("flow", step.reply, [], step.options);
       trace.guardrails.push({ rule: "handover_contact", result: step.changed ? "hit" : "pass", detail: `${ctx.flow.step} → ${step.flow.step}` });
       return finish();
@@ -209,7 +227,7 @@ export async function runExecutor(ctx: TurnContext, deps: ExecutorDeps, emit: Em
     // so the visitor isn't left wondering; once the team is talking, the bot stays out of the way.
     const waiting = T.waitingForTeam(practice);
     const lastBot = ctx.history.findLast((h) => h.role === "bot")?.text;
-    const teamReplied = ctx.history.some((h) => h.role === "staff");
+    const teamReplied = ctx.teamReplied || ctx.history.some((h) => h.role === "staff");
     if (ctx.action || (!teamReplied && lastBot !== waiting)) out.template("acknowledge", waiting);
     return finish();
   }
@@ -219,6 +237,7 @@ export async function runExecutor(ctx: TurnContext, deps: ExecutorDeps, emit: Em
   let handoverTrigger: "precheck" | "planner" | "visitor_button" = "planner";
   const bookingStep = ctx.flow?.name === "booking_request" ? nextStepOf(ctx.flow) : null;
   let timeNoteOnly = false;
+  let rebook = false;
 
   if (ctx.action === "handover") {
     commands = [{ cmd: "handover", reason: "visitor_request" }];
@@ -227,8 +246,9 @@ export async function runExecutor(ctx: TurnContext, deps: ExecutorDeps, emit: Em
   } else if (ctx.action === "book" || text.toLowerCase() === T.BOOK_OPTION.toLowerCase() || (offerPending() && yesNo(text) === "yes")) {
     // The "Book a check-up" button knows the reason; the offer's "Book an appointment" chip asks for it.
     const tapped = !ctx.action;
+    rebook = ctx.flow?.name === "booking_request";
     commands =
-      ctx.flow?.name === "booking_request"
+      rebook
         ? []
         : tapped
           ? [{ cmd: "start_flow", flow: "booking_request" }]
@@ -237,6 +257,10 @@ export async function runExecutor(ctx: TurnContext, deps: ExecutorDeps, emit: Em
               { cmd: "set_slot", slot: "reason", value: "Check-up" },
             ];
     trace.plannerSkipped = tapped ? "booking_offer" : "exit_button";
+  } else if (askTeamPending() && (text === T.ASK_TEAM_OPTIONS[0] || yesNo(text) === "yes")) {
+    commands = [{ cmd: "handover", reason: "visitor_request" }];
+    handoverTrigger = "visitor_button";
+    trace.plannerSkipped = "ask_team_offer";
   } else {
     const pre = clinicalPrecheck(text);
     trace.guardrails.push(
@@ -254,7 +278,7 @@ export async function runExecutor(ctx: TurnContext, deps: ExecutorDeps, emit: Em
     } else if (bookingStep && bookingStep !== "done" && bookingStep !== "change" && quickReplyValue(bookingStep, text) !== null) {
       commands = [{ cmd: "set_slot", slot: bookingStep, value: quickReplyValue(bookingStep, text)! }];
       trace.plannerSkipped = "deterministic_option";
-    } else if (offerPending() && OFFER_DECLINE.test(text)) {
+    } else if ((offerPending() || askTeamPending() || askedAnythingElse()) && OFFER_DECLINE.test(text)) {
       result.act = "acknowledged";
       trace.plannerSkipped = "booking_offer_declined";
       out.template("acknowledge", T.OFFER_DECLINED);
@@ -274,6 +298,15 @@ export async function runExecutor(ctx: TurnContext, deps: ExecutorDeps, emit: Em
       result.act = "acknowledged";
       trace.plannerSkipped = "greeting";
       out.template("acknowledge", T.GREET_BACK, [], T.GREET_OPTIONS);
+      return finish();
+    } else if (!bookingStep && OPEN_NOW.test(text) && (await openNow())) {
+      return finish();
+    } else if (!bookingStep && PRICE_TOPIC.test(text)) {
+      result.act = "clarify";
+      trace.plannerSkipped = "price_topic";
+      const chunks = await deps.retrieve("treatments and prices", bundle);
+      const page = chunks.find((c) => /price/i.test(c.page)) ?? chunks[0];
+      out.template("clarify", T.PRICE_LEAD, page ? [sourceOf(page)] : [], T.PRICE_OPTIONS);
       return finish();
     } else if (bookingStep && bookingStep !== "done" && asksForFixedTime(text)) {
       timeNoteOnly = true;
@@ -332,7 +365,8 @@ export async function runExecutor(ctx: TurnContext, deps: ExecutorDeps, emit: Em
         const v = validateSlot(c.slot, c.value);
         flowTouched = true;
         if (v.ok) {
-          flow = applyBookingSlot(flow, c.slot, v.value);
+          const value = c.slot === "preferred_time" ? withDates(v.value, new Date(now()), TIME_ZONE) : v.value;
+          flow = applyBookingSlot(flow, c.slot, value);
         } else {
           invalidSlot = c.slot;
           trace.guardrails.push({ rule: "slot_validation", result: "hit", detail: `${c.slot}: ${v.error}` });
@@ -352,7 +386,7 @@ export async function runExecutor(ctx: TurnContext, deps: ExecutorDeps, emit: Em
       case "cannot_handle":
         result.act = c.reason === "out_of_scope" ? "out_of_scope" : "cannot_handle";
         if (c.reason === "abusive") trace.guardrails.push({ rule: "abuse", result: "blocked" });
-        out.template("cannot_handle", T.cannotHandle(practice, c.reason));
+        out.template("cannot_handle", T.cannotHandle(practice, c.reason), [], c.reason === "out_of_scope" ? T.STEER_BACK_OPTIONS : []);
         break;
       case "handover":
         doHandover(c.reason, handoverTrigger);
@@ -376,7 +410,13 @@ export async function runExecutor(ctx: TurnContext, deps: ExecutorDeps, emit: Em
       const step = nextBookingStep(flow);
       if (step !== "done") {
         flow = { ...flow, step };
-        const prompt = invalidSlot && invalidSlot === step && BOOKING_INVALID[step] ? BOOKING_INVALID[step]! : bookingPrompt(step, flow.slots);
+        const invalid = invalidSlot && invalidSlot === step && BOOKING_INVALID[step];
+        if (step === "nhs_route" && !invalid && !rebook) await answer("Are you taking new NHS patients?", { quiet: true });
+        const prompt = invalid
+          ? BOOKING_INVALID[step]!
+          : rebook && step === "confirm"
+            ? BOOKING_READY
+            : `${rebook ? `${BOOKING_CONTINUE} ` : ""}${bookingPrompt(step, flow.slots)}`;
         out.template("flow", prompt, [], bookingOptions(step));
         if (result.answered === 0 || flowTouched) result.act = "flow";
       }
@@ -394,7 +434,7 @@ export async function runExecutor(ctx: TurnContext, deps: ExecutorDeps, emit: Em
   if (out.segments.length === 0) {
     result.act = "fallback";
     result.fallbacks += 1;
-    out.template("fallback", T.dontKnow(practice));
+    out.template("fallback", T.dontKnow(practice), [], T.ASK_TEAM_OPTIONS);
   }
   return finish();
 
@@ -405,7 +445,9 @@ export async function runExecutor(ctx: TurnContext, deps: ExecutorDeps, emit: Em
         ? bundle.handoverSources.clinical
         : [];
     out.template("handover", T.handoverMessage(practice, reason), sources);
-    const contact = startContact(knownContact(ctx.flow, text));
+    const details =
+      trigger === "visitor_button" ? null : T.isUrgentReason(reason) ? T.URGENT_DETAILS : reason === "visitor_request" && BILLING.test(text) ? T.BILLING_DETAILS : null;
+    const contact = startContact(knownContact(ctx.flow, text), details);
     if (contact.prompt) out.template("flow", contact.prompt, [], contact.options);
     result.handover = { reason, trigger };
     result.contact = { ...contact.flow.slots };
@@ -420,12 +462,36 @@ export async function runExecutor(ctx: TurnContext, deps: ExecutorDeps, emit: Em
     return !ctx.bookingOffered && !ctx.flow;
   }
 
+  function askedAnythingElse() {
+    return /anything else I can help with(?: before your visit)?\?$/.test(ctx.history.findLast((h) => h.role === "bot")?.text ?? "");
+  }
+
+  function askTeamPending() {
+    const lastBot = ctx.history.findLast((h) => h.role === "bot")?.text;
+    return lastBot === T.dontKnow(practice);
+  }
+
+  /** Answers from the published opening hours and the practice clock; false when the hours can't be read. */
+  async function openNow(): Promise<boolean> {
+    const chunks = await deps.retrieve("opening hours", bundle);
+    const hoursChunk = chunks.find((c) => /opening hours/i.test(c.heading) && Object.keys(parseHours(c.text)).length >= 5);
+    const reply = hoursChunk ? openNowAnswer(parseHours(hoursChunk.text), new Date(now()), TIME_ZONE) : null;
+    if (!hoursChunk || !reply) return false;
+    trace.plannerSkipped = "open_now";
+    trace.guardrails.push({ rule: "open_now", result: "hit", detail: reply });
+    out.template("answer", reply, [sourceOf(hoursChunk)]);
+    result.answered += 1;
+    result.topic ??= `${hoursChunk.slug}#${hoursChunk.anchor}`;
+    return true;
+  }
+
   function offerPending() {
     const lastBot = ctx.history.findLast((h) => h.role === "bot")?.text;
     return lastBot === T.BOOKING_OFFER || lastBot === T.ACKNOWLEDGE_WITH_OFFER;
   }
 
-  async function answer(query: string) {
+  /** `quiet` serves the answer only if one is found, for context inside a flow, where a fallback would interrupt it. */
+  async function answer(query: string, { quiet = false } = {}) {
     const threshold = bundle.config.retrievalThreshold;
     const chunks = await deps.retrieve(query, bundle);
     const top = chunks[0];
@@ -441,13 +507,14 @@ export async function runExecutor(ctx: TurnContext, deps: ExecutorDeps, emit: Em
       });
     }
     if (!top || top.score < threshold) {
+      if (quiet) return;
       trace.guardrails.push({
         rule: "retrieval_threshold",
         result: "hit",
         detail: `${query}: top ${top ? round(top.score) : "none"} < ${threshold}`,
       });
       result.fallbacks += 1;
-      out.template("fallback", T.dontKnow(practice));
+      out.template("fallback", T.dontKnow(practice), [], T.ASK_TEAM_OPTIONS);
       if (result.act === "answered") result.act = "fallback";
       return;
     }
@@ -482,6 +549,11 @@ export async function runExecutor(ctx: TurnContext, deps: ExecutorDeps, emit: Em
         return;
       }
       const citedText = cited.map((c) => `${c.heading} ${c.text}`).join("\n");
+      if (top.score < RELEVANCE_CHECK_BELOW && !sharesTopic(query, citedText)) {
+        blocked += 1;
+        trace.guardrails.push({ rule: "off_topic", result: "dropped", detail: `"${query}" vs ${cited[0]!.heading}` });
+        return;
+      }
       for (const check of [checkGrounding(s.text, citedText), clinicalOutputCheck(s.text)]) {
         if (!check.ok) {
           blocked += 1;
@@ -513,6 +585,7 @@ export async function runExecutor(ctx: TurnContext, deps: ExecutorDeps, emit: Em
       trace.guardrails.push({ rule: "grounding", result: blocked ? "dropped" : "pass", detail: `${emitted} sentence(s) served` });
       return;
     }
+    if (quiet) return;
     const topics = blocked === 0 ? topicOptions(query, chunks, threshold) : [];
     if (topics.length >= 2) {
       trace.guardrails.push({ rule: "topic_menu", result: "hit", detail: `${query}: ${topics.join(" · ")}` });
@@ -528,7 +601,7 @@ export async function runExecutor(ctx: TurnContext, deps: ExecutorDeps, emit: Em
       result.act = "fallback";
     }
     if (noAnswer) trace.guardrails.push({ rule: "compose_no_answer", result: "hit", detail: query });
-    out.template("fallback", T.dontKnow(practice));
+    out.template("fallback", T.dontKnow(practice), [], T.ASK_TEAM_OPTIONS);
   }
 }
 
@@ -543,6 +616,15 @@ function topicOptions(query: string, chunks: ScoredChunk[], threshold: number): 
     headings.push(c.heading);
   }
   return headings.slice(0, 4);
+}
+
+/** True when the question has no distinctive words, or at least one of them appears in the cited text. */
+export function sharesTopic(query: string, citedText: string): boolean {
+  const words = query.toLowerCase().replace(/[’']/g, "").match(/[a-z][a-z-]{3,}/g) ?? [];
+  const distinctive = words.filter((w) => !GENERIC_WORDS.has(w));
+  if (distinctive.length === 0) return true;
+  const haystack = citedText.toLowerCase();
+  return distinctive.some((w) => haystack.includes(w.length > 5 ? w.slice(0, 5) : w));
 }
 
 function nextStepOf(flow: FlowState) {

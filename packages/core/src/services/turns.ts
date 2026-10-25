@@ -180,6 +180,7 @@ export async function runTurn(opts: {
       lastBotAct: conv.lastBotAct,
       answeredBefore: conv.answeredCount,
       bookingOffered: offered || Boolean(conv.handedOverAt),
+      teamReplied: Boolean(conv.lastHumanAt && conv.handedOverAt && conv.lastHumanAt >= conv.handedOverAt),
     },
     depsFor(mode),
     (e) => emit(e.type === "delta" ? { ...e, text: detokenise(e.text, values) } : e),

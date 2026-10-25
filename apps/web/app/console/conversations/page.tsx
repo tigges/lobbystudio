@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { labelTitle, listConversations, OUTCOMES } from "@dental-bot/core";
+import { labelTitle, listConversations, OUTCOMES, REVIEW_STATES, reviewState } from "@dental-bot/core";
 import { label, OUTCOME_STYLE, when } from "@/lib/format";
 import { SITE_TENANT } from "@/lib/site";
 import { LabelChip } from "../labels";
@@ -8,7 +8,7 @@ import { AdminNote } from "../ui";
 export const metadata = { title: "Conversations" };
 
 type Row = Awaited<ReturnType<typeof listConversations>>[number];
-type Params = { outcome?: string; had?: string; label?: string; version?: string };
+type Params = { outcome?: string; had?: string; review?: string; version?: string };
 
 const HAD: { key: string; title: string; test: (r: Row) => boolean }[] = [
   { key: "handover", title: "handover", test: (r) => r.handedOver },
@@ -18,11 +18,12 @@ const HAD: { key: string; title: string; test: (r: Row) => boolean }[] = [
   { key: "check", title: "safety check dropped text", test: (r) => r.hadCheck },
 ];
 
-const LABELLED: { key: string; title: string; test: (r: Row) => boolean }[] = [
-  { key: "labelled", title: "labelled", test: (r) => r.labels.length > 0 },
-  { key: "unlabelled", title: "unlabelled", test: (r) => r.labels.length === 0 },
-  { key: "issues", title: "has issue labels", test: (r) => r.labels.some((l) => l !== "good") },
-];
+const REVIEW_STYLE: Record<string, string> = {
+  to_review: "bg-violet-50 text-violet-900 ring-violet-200",
+  open: "bg-amber-50 text-amber-900 ring-amber-200",
+  actioned: "bg-emerald-50 text-emerald-900 ring-emerald-200",
+  reviewed: "bg-slate-50 text-slate-700 ring-slate-200",
+};
 
 function href(params: Params, change: Partial<Params>) {
   const next = { ...params, ...change };
@@ -48,15 +49,17 @@ export default async function ConversationsPage({ searchParams }: { searchParams
   const versions = [...new Set(all.map((r) => r.versionNumber))].sort((a, b) => b - a);
 
   const had = HAD.find((h) => h.key === params.had);
-  const labelled = LABELLED.find((l) => l.key === params.label);
-  // Counters reflect every filter except the outcome itself, so they show what clicking one would give.
-  const scoped = all.filter(
-    (r) => (!params.version || String(r.versionNumber) === params.version) && (!had || had.test(r)) && (!labelled || labelled.test(r)),
-  );
+  // The review queue is the default view, so conversations already dealt with don't come round again.
+  const review = params.review ?? "to_review";
+  const base = all.filter((r) => (!params.version || String(r.versionNumber) === params.version) && (!had || had.test(r)));
+  const reviewCounts = new Map<string, number>();
+  for (const r of base) reviewCounts.set(reviewState(r), (reviewCounts.get(reviewState(r)) ?? 0) + 1);
+  // Outcome counters reflect every filter except the outcome itself, so they show what clicking one would give.
+  const scoped = base.filter((r) => review === "all" || reviewState(r) === review);
   const rows = scoped.filter((r) => !params.outcome || (params.outcome === "none" ? !r.outcome : r.outcome === params.outcome));
   const counts = new Map<string, number>();
   for (const r of scoped) counts.set(r.outcome ?? "none", (counts.get(r.outcome ?? "none") ?? 0) + 1);
-  const filtered = Boolean(params.outcome || params.had || params.label || params.version);
+  const filtered = Boolean(params.outcome || params.had || params.version || params.review);
 
   return (
     <div>
@@ -71,6 +74,23 @@ export default async function ConversationsPage({ searchParams }: { searchParams
             Clear filters
           </Link>
         )}
+      </div>
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        {[...REVIEW_STATES, { key: "all", title: "All" }].map((st) => {
+          const on = review === st.key;
+          const n = st.key === "all" ? base.length : (reviewCounts.get(st.key) ?? 0);
+          return (
+            <Link
+              key={st.key}
+              href={href(params, { review: st.key === "to_review" ? undefined : st.key })}
+              aria-pressed={on}
+              className={`rounded-lg px-3 py-1.5 text-sm ring-1 ${on ? "ring-2 ring-slate-800" : "opacity-70 hover:opacity-100"} ${REVIEW_STYLE[st.key] ?? "bg-white text-slate-700 ring-slate-200"}`}
+            >
+              <span className="mr-1.5 font-semibold tabular-nums">{n}</span>
+              {st.title}
+            </Link>
+          );
+        })}
       </div>
       <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-7">
         {[...OUTCOMES, "none"].map((o) => {
@@ -96,12 +116,6 @@ export default async function ConversationsPage({ searchParams }: { searchParams
         {HAD.map((h) => (
           <Chip key={h.key} on={params.had === h.key} to={href(params, { had: params.had === h.key ? undefined : h.key })}>
             {h.title}
-          </Chip>
-        ))}
-        <span className="ml-3 text-xs text-slate-500">Review</span>
-        {LABELLED.map((l) => (
-          <Chip key={l.key} on={params.label === l.key} to={href(params, { label: params.label === l.key ? undefined : l.key })}>
-            {l.title}
           </Chip>
         ))}
         {versions.length > 1 && (

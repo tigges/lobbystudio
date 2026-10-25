@@ -1,9 +1,10 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { conversationDetail } from "@dental-bot/core";
+import { conversationDetail, listConversations, REVIEW_STATES, reviewState } from "@dental-bot/core";
+import { reviewedAction } from "../../actions";
 import { label, OUTCOME_STYLE, when } from "@/lib/format";
 import { SITE_TENANT } from "@/lib/site";
-import { LabelChip, LabelForm } from "../../labels";
+import { ActionedForm, LabelChip, LabelForm } from "../../labels";
 import { Transcript } from "../../transcript";
 import { AdminNote } from "../../ui";
 
@@ -40,6 +41,14 @@ export default async function ConversationPage({
   const path = `/console/conversations/${c.id}`;
   const labelled = turns.filter((t) => labels.has(t.id)).length;
   const totalCost = turns.reduce((s, t) => s + Number(t.costUsd), 0);
+  const labelRows = [...labels.values()];
+  const state = reviewState({
+    reviewedAt: c.reviewedAt,
+    labels: labelRows.map((l) => l.label),
+    openLabels: labelRows.filter((l) => l.label !== "good" && !l.actionedAt).length,
+    actionedLabels: labelRows.filter((l) => l.actionedAt).length,
+  });
+  const next = (await listConversations(SITE_TENANT, 300)).find((r) => r.id !== c.id && reviewState(r) === "to_review");
 
   return (
     <div className="space-y-6">
@@ -90,8 +99,27 @@ export default async function ConversationPage({
               {labelled} of {turns.length} labelled
             </span>
           </div>
+          <div className="flex flex-wrap items-center gap-3 rounded-xl bg-white px-4 py-2.5 text-sm ring-1 ring-slate-200">
+            <span className="text-xs text-slate-500">Review</span>
+            <span className="font-medium text-slate-900">{REVIEW_STATES.find((x) => x.key === state)?.title}</span>
+            {labels.size === 0 && (
+              <form action={reviewedAction}>
+                <input type="hidden" name="conversationId" value={c.id} />
+                <input type="hidden" name="reviewed" value={c.reviewedAt ? "0" : "1"} />
+                <button className={`text-xs font-medium hover:underline ${c.reviewedAt ? "text-slate-500" : "text-emerald-700"}`}>
+                  {c.reviewedAt ? "Undo" : "Mark reviewed, nothing to fix"}
+                </button>
+              </form>
+            )}
+            {next && (
+              <Link href={`/console/conversations/${next.id}`} className="ml-auto text-xs font-medium text-harbour-700 hover:underline">
+                Next to review →
+              </Link>
+            )}
+          </div>
           <p className="text-xs text-slate-500">
-            Inputs are stored with personal data replaced by tokens, exactly as the model saw them. Open a turn to label it.
+            Inputs are stored with personal data replaced by tokens, exactly as the model saw them. Open a turn to label it; labelling counts as
+            reviewed.
           </p>
           {turns.map((t) => (
             <details
@@ -109,10 +137,16 @@ export default async function ConversationPage({
                   {Number(t.costUsd).toFixed(4)}
                 </span>
                 {labels.get(t.id) && <LabelChip label={labels.get(t.id)!.label} />}
+                {labels.get(t.id)?.actionedAt && <span className="text-[11px] text-emerald-700">fixed</span>}
                 <span className="text-xs text-slate-400">{when(t.createdAt)}</span>
               </summary>
               <div className="border-t border-slate-100 bg-violet-50/40 px-4 py-3">
                 <LabelForm key={`${labels.get(t.id)?.label}:${labels.get(t.id)?.note}`} turnId={t.id} current={labels.get(t.id)?.label ?? null} note={labels.get(t.id)?.note ?? null} savedAt={labels.get(t.id)?.updatedAt ?? null} path={path} />
+                {labels.get(t.id) && labels.get(t.id)!.label !== "good" && (
+                  <div className="mt-2">
+                    <ActionedForm turnIds={[t.id]} actioned={Boolean(labels.get(t.id)!.actionedAt)} actionedIn={labels.get(t.id)!.actionedIn} path={path} />
+                  </div>
+                )}
               </div>
               <div className="grid gap-4 border-t border-slate-100 px-4 py-3 text-xs md:grid-cols-2">
                 <div>

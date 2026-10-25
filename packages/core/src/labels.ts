@@ -28,3 +28,23 @@ export function isTurnLabel(key: string): key is TurnLabelKey {
 export function labelTitle(key: string): string {
   return TURN_LABELS.find((l) => l.key === key)?.title ?? key;
 }
+
+/**
+ * Where a conversation stands in the learning loop: not looked at yet, has problems waiting for a fix,
+ * every problem addressed by a release, or looked at with nothing to fix.
+ */
+export const REVIEW_STATES = [
+  { key: "to_review", title: "To review" },
+  { key: "open", title: "Labelled, waiting for a fix" },
+  { key: "actioned", title: "Fixed in a release" },
+  { key: "reviewed", title: "Reviewed, nothing to fix" },
+] as const;
+
+export type ReviewState = (typeof REVIEW_STATES)[number]["key"];
+
+export function reviewState(c: { reviewedAt: Date | string | null; labels: string[]; openLabels: number; actionedLabels: number }): ReviewState {
+  if (c.openLabels > 0) return "open";
+  if (c.actionedLabels > 0) return "actioned";
+  if (c.reviewedAt || c.labels.length > 0) return "reviewed";
+  return "to_review";
+}

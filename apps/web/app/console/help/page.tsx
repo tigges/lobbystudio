@@ -19,7 +19,7 @@ const STEPS = [
     img: "01-visitor-asks-for-team.webp",
     body: [
       "Visitors chat with the assistant on the practice website. It answers from the practice's own pages and shows a source link under each answer.",
-      "The conversation comes to you when the visitor presses “Talk to the practice”, mentions pain, swelling, bleeding or an injury, asks for clinical advice, or raises a complaint or a question about their records. The visitor sees a banner saying the team will reply in the chat, and the assistant asks for their name and phone number so you can always get back to them.",
+      "The conversation comes to you when the visitor presses “Talk to the practice”, mentions pain, swelling, bleeding or an injury, asks for clinical advice, or raises a complaint or a question about their records. The visitor sees a banner saying the team will reply in the chat, and the assistant asks for their name and phone number so you can always get back to them. For pain or an injury it first asks how bad it is and whether there is swelling or bleeding; for a bill it asks what it's about and for the invoice number. Their answer appears under “What they told the assistant”. Once you reply, the assistant stops asking questions and leaves the conversation to you.",
     ],
   },
   {
@@ -67,6 +67,7 @@ const STEPS = [
     img: "06-conversations.webp",
     body: [
       "Conversations lists every chat with its outcome, so you can see how the assistant is doing. Click the first message to open a conversation.",
+      "Conversations opens on “To review”: chats nobody has looked at yet. Labelling a turn, or “Mark reviewed, nothing to fix” in the ledger, moves a chat out of the queue, and “Next to review →” takes you to the next one. Chats with problem labels wait under “Labelled, waiting for a fix” until a release addresses them; then mark the labels fixed (in the ledger, or for a whole label group in Insights) and they move to “Fixed in a release”. Changing a label or its note reopens it.",
       "Outcomes are confirmed when the visitor says thanks, finishes a booking or rates the chat 4–5 stars. Otherwise they're assumed after 24 hours without activity, and reversed if the visitor comes back about the same thing within 7 days.",
     ],
   },
