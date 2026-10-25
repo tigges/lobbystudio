@@ -197,6 +197,13 @@ export default async function InsightsPage({ searchParams }: { searchParams: Pro
             if (!count) return null;
             return <Row key={l.key} to={g(`label:${l.key}`)} on={selected === `label:${l.key}`} name={<LabelChip label={l.key} />} count={count} total={t} />;
           })}
+          {labelled > 0 && (
+            <li className="pt-2">
+              <a href="/console/insights/export" className="text-xs font-medium text-harbour-700 hover:underline">
+                Download all labels with their context (JSON) →
+              </a>
+            </li>
+          )}
         </Panel>
 
         <Panel title="Outcomes" hint="Conversations with a turn in this period. Opens the filtered conversation list.">
@@ -265,8 +272,14 @@ export default async function InsightsPage({ searchParams }: { searchParams: Pro
                       <span className="text-xs text-slate-400">Assistant: </span>
                       {turn.reply ?? <span className="text-slate-400">(no reply)</span>}
                     </p>
+                    {turn.note && (
+                      <p className="text-xs text-violet-800">
+                        <span className="text-violet-400">Your note: </span>
+                        {turn.note}
+                      </p>
+                    )}
                   </div>
-                  <LabelForm key={`${turn.label}:${turn.note}`} turnId={turn.id} current={turn.label} note={turn.note} path={listPath} compact />
+                  <LabelForm key={`${turn.label}:${turn.note}`} turnId={turn.id} current={turn.label} note={turn.note} savedAt={turn.labelledAt} path={listPath} compact />
                 </div>
               ))}
             </div>

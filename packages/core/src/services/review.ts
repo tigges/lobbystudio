@@ -139,7 +139,34 @@ export type GroupTurn = {
   costUsd: number;
   label: string | null;
   note: string | null;
+  labelledAt: Date | null;
 };
+
+/**
+ * Every labelled turn with what's needed to work on it away from the console: the reply, the decision trace
+ * and the messages just before it. Personal data stays as tokens.
+ */
+export async function labelExport(tenantId: string) {
+  return rows<Record<string, unknown>>(sql`
+    select l.label, l.note, l.updated_at as "labelledAt",
+      t.conversation_id as "conversationId", t.index as "turn", t.version_number as "assistantVersion",
+      t.content_version_number as "contentVersion", t.build, t.created_at as "at",
+      t.input as "visitor",
+      (select string_agg(m.text, ' ' order by m.id) from ${messages} m where m.turn_id = t.id and m.role = 'bot') as "assistant",
+      coalesce((select array_agg(distinct m.kind) from ${messages} m where m.turn_id = t.id and m.role = 'bot'), '{}') as "replyKinds",
+      coalesce((select json_agg(x order by x.id) from (
+        select m.id, m.role, m.text from ${messages} m
+        where m.conversation_id = t.conversation_id and m.created_at < t.created_at
+        order by m.id desc limit 4) x), '[]') as "before",
+      t.commands, t.rejected_commands as "rejectedCommands",
+      coalesce((select json_agg(g) from jsonb_array_elements(t.guardrails) g where g->>'result' <> 'pass'), '[]') as "checksFired",
+      coalesce((select json_agg(r) from (select r from jsonb_array_elements(t.retrieved) r limit 5) s), '[]') as "retrieved",
+      t.flow_before as "flowBefore", t.flow_after as "flowAfter",
+      t.latency_ms as "latencyMs", t.cost_usd::float as "costUsd"
+    from ${turnLabels} l join ${turns} t on t.id = l.turn_id
+    where l.tenant_id = ${tenantId}
+    order by l.label, t.created_at`);
+}
 
 /** The turns in one Insights group, newest first. Text is shown with personal data as tokens, as the model saw it. */
 export async function groupTurns(tenantId: string, group: GroupKey, f: ReviewFilter = {}, limit = 100): Promise<GroupTurn[]> {
@@ -150,7 +177,7 @@ export async function groupTurns(tenantId: string, group: GroupKey, f: ReviewFil
       (select string_agg(m.text, ' ' order by m.id) from ${messages} m where m.turn_id = t.id and m.role = 'bot') as "reply",
       coalesce((select array_agg(distinct m.kind) from ${messages} m where m.turn_id = t.id and m.role = 'bot'), '{}') as "kinds",
       t.created_at as "createdAt", t.version_number as "versionNumber", t.build, t.latency_ms as "latencyMs",
-      t.cost_usd::float as "costUsd", l.label, l.note
+      t.cost_usd::float as "costUsd", l.label, l.note, l.updated_at as "labelledAt"
     from ${turns} t left join ${turnLabels} l on l.turn_id = t.id
     where ${scope(tenantId, f)} and ${predicate}
     order by t.created_at desc
