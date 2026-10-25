@@ -2,16 +2,16 @@ import { describe, expect, it } from "vitest";
 import { normaliseCommands, runExecutor } from "../src/runtime/executor.ts";
 import { validateSlot } from "../src/runtime/flows/booking-request.ts";
 import * as T from "../src/runtime/templates.ts";
-import type { ExecutorEvent } from "../src/runtime/types.ts";
+import type { ExecutorEvent, ScoredChunk } from "../src/runtime/types.ts";
 import { bundle, ctx, fakeDeps, fillingChunk, hoursChunk, hygieneChunk } from "./fixtures.ts";
 
 describe("hard rules", () => {
   it.each([
-    ["my tooth really hurts", "pain_or_symptoms"],
-    ["my face is swollen", "pain_or_symptoms"],
-    ["it's an emergency", "emergency"],
-    ["what painkiller should I take?", "clinical_advice"],
-  ])("hands over %j without calling the planner", async (text, reason) => {
+    ["my tooth really hurts", "pain_or_symptoms", /how bad is the pain/],
+    ["my face is swollen", "pain_or_symptoms", /how bad is the pain/],
+    ["it's an emergency", "emergency", /how bad is the pain/],
+    ["what painkiller should I take?", "clinical_advice", /what's your name/],
+  ])("hands over %j without calling the planner", async (text, reason, nextQuestion) => {
     const { deps, calls } = fakeDeps({ commands: [{ cmd: "answer_from_knowledge", query: text }] });
     const r = await runExecutor(ctx({ visitorText: text }), deps);
     expect(calls.plan).toBe(0);
@@ -21,7 +21,7 @@ describe("hard rules", () => {
     expect(r.trace.guardrails[0]).toMatchObject({ rule: "clinical_precheck", result: "hit" });
     expect(r.segments).toHaveLength(2);
     expect(r.segments[0]!.text).toContain(bundle.practice.phone);
-    expect(r.segments[1]!.text).toMatch(/what's your name/);
+    expect(r.segments[1]!.text).toMatch(nextQuestion);
   });
 
   it("gives 999 and A&E advice with the emergencies page as the source for urgent handovers", async () => {
@@ -190,7 +190,8 @@ describe("booking_request flow", () => {
     const steps: [string | null, "book" | null, unknown[], RegExp][] = [
       [null, "book", [], /new to the practice/],
       ["New patient", null, [], /NHS or private/],
-      ["NHS", null, [], /days or times/],
+      ["NHS", null, [], /child under 18/],
+      ["Join the waiting list", null, [], /days or times/],
       ["tuesday evenings", null, [{ cmd: "set_slot", slot: "preferred_time", value: "tuesday evenings" }], /what name/],
       ["‹NAME_1›", null, [{ cmd: "set_slot", slot: "name", value: "‹NAME_1›" }], /phone number/],
       ["‹PHONE_1›", null, [{ cmd: "set_slot", slot: "phone", value: "‹PHONE_1›" }], /Shall I send this/],
@@ -207,6 +208,7 @@ describe("booking_request flow", () => {
       phone: "‹PHONE_1›",
       patient: "new",
       care: "NHS",
+      nhs_route: "waiting list",
       preferred_time: "tuesday evenings",
     });
 
@@ -220,7 +222,7 @@ describe("booking_request flow", () => {
   });
 
   it("re-asks when the phone number is invalid", async () => {
-    const flow = { name: "booking_request" as const, step: "phone", slots: { reason: "Check-up", patient: "new", care: "NHS", preferred_time: "mornings", name: "‹NAME_1›" } };
+    const flow = { name: "booking_request" as const, step: "phone", slots: { reason: "Check-up", patient: "new", care: "NHS", nhs_route: "child", preferred_time: "mornings", name: "‹NAME_1›" } };
     const { deps } = fakeDeps({ commands: [{ cmd: "set_slot", slot: "phone", value: "12345" }] });
     const r = await runExecutor(ctx({ visitorText: "12345", flow }), deps);
     expect(r.segments[0]!.text).toMatch(/doesn't look like a UK phone number/);
@@ -246,7 +248,7 @@ describe("booking_request flow", () => {
   });
 
   it("answers a side question mid-flow, then repeats the current step", async () => {
-    const flow = { name: "booking_request" as const, step: "phone", slots: { reason: "Check-up", patient: "new", care: "NHS", preferred_time: "mornings", name: "‹NAME_1›" } };
+    const flow = { name: "booking_request" as const, step: "phone", slots: { reason: "Check-up", patient: "new", care: "NHS", nhs_route: "child", preferred_time: "mornings", name: "‹NAME_1›" } };
     const { deps } = fakeDeps({
       commands: [{ cmd: "answer_from_knowledge", query: "saturday hours" }],
       chunks: [hoursChunk],
@@ -261,7 +263,16 @@ describe("booking_request flow", () => {
     const flow = {
       name: "booking_request" as const,
       step: "change",
-      slots: { reason: "Check-up", name: "‹NAME_1›", phone: "‹PHONE_1›", patient: "new", care: "NHS", preferred_time: "tomorrow" },
+      slots: {
+        reason: "Check-up",
+        name: "‹NAME_1›",
+        phone: "‹PHONE_1›",
+        patient: "new",
+        care: "NHS",
+        nhs_route: "child",
+        preferred_time: "tomorrow",
+        time_of_day: "morning",
+      },
     };
     const { deps, calls } = fakeDeps({ commands: [{ cmd: "handover", reason: "visitor_request" }] });
     const r = await runExecutor(ctx({ visitorText: "I want a date/time confirmation for my appointment", flow }), deps);
@@ -280,7 +291,7 @@ describe("booking_request flow", () => {
   });
 
   it("does not take an answer to another question as a name", async () => {
-    const flow = { name: "booking_request" as const, step: "name", slots: { reason: "Check-up", patient: "new", care: "NHS", preferred_time: "mornings" } };
+    const flow = { name: "booking_request" as const, step: "name", slots: { reason: "Check-up", patient: "new", care: "NHS", nhs_route: "child", preferred_time: "mornings" } };
     const { deps } = fakeDeps({ commands: [{ cmd: "set_slot", slot: "name", value: "Routine check-up" }] });
     const r = await runExecutor(ctx({ visitorText: "Routine check-up", flow }), deps);
     expect(r.flow?.slots.name).toBeUndefined();
@@ -315,8 +326,12 @@ describe("contact details after a handover", () => {
     const booking = { name: "booking_request" as const, step: "patient", slots: { reason: "Check-up", name: "‹NAME_1›" } };
     const r = await runExecutor(ctx({ visitorText: "my tooth really hurts, call me on ‹PHONE_1›", flow: booking }), deps);
     expect(r.contact).toEqual({ name: "‹NAME_1›", phone: "‹PHONE_1›" });
-    expect(r.flow?.step).toBe("waiting");
-    expect(r.segments).toHaveLength(1);
+    expect(r.flow?.step).toBe("details");
+    expect(r.segments[1]!.text).toMatch(/how bad is the pain/);
+
+    const told = await runExecutor({ ...handedOver(r.flow!), visitorText: "about 7, no swelling" }, deps);
+    expect(told.flow).toMatchObject({ step: "waiting", slots: { details: "about 7, no swelling" } });
+    expect(told.segments.map((s) => s.text)).toEqual([expect.stringMatching(/added that for the team/)]);
   });
 
   it("stops asking when the visitor declines, and stays quiet for longer messages to the team", async () => {
@@ -408,7 +423,7 @@ describe("quick replies", () => {
   });
 
   it("offers yes or change on the summary, and a way to skip contact details after a handover", async () => {
-    const flow = { name: "booking_request" as const, step: "phone", slots: { reason: "Check-up", patient: "new", care: "NHS", preferred_time: "mornings", name: "‹NAME_1›" } };
+    const flow = { name: "booking_request" as const, step: "phone", slots: { reason: "Check-up", patient: "new", care: "NHS", nhs_route: "child", preferred_time: "mornings", name: "‹NAME_1›" } };
     const summary = await runExecutor(ctx({ visitorText: "‹PHONE_1›", flow }), fakeDeps({ commands: [{ cmd: "set_slot", slot: "phone", value: "‹PHONE_1›" }] }).deps);
     expect(summary.segments.at(-1)!.options).toEqual(["Yes, send it", "Change something"]);
     const change = await runExecutor(ctx({ visitorText: "Change something", flow: summary.flow }), fakeDeps().deps);
@@ -441,14 +456,14 @@ describe("command validation", () => {
 
   it("never lets clarify options carry prices or numbers", async () => {
     const { deps } = fakeDeps({ commands: [{ cmd: "clarify", options: ["Check-up £55", "Hygienist £75"] }] });
-    const r = await runExecutor(ctx({ visitorText: "how much" }), deps);
+    const r = await runExecutor(ctx({ visitorText: "how much for a family" }), deps);
     expect(r.act).toBe("fallback");
     expect(r.trace.guardrails).toContainEqual(expect.objectContaining({ rule: "clarify_options", result: "dropped" }));
   });
 
   it("renders clarify options as quick replies", async () => {
     const { deps } = fakeDeps({ commands: [{ cmd: "clarify", options: ["Private prices", "NHS charges"] }] });
-    const r = await runExecutor(ctx({ visitorText: "how much is it" }), deps);
+    const r = await runExecutor(ctx({ visitorText: "how much for a family" }), deps);
     expect(r.act).toBe("clarify");
     expect(r.segments[0]!.options).toEqual(["Private prices", "NHS charges"]);
   });
@@ -503,11 +518,11 @@ describe("command validation", () => {
   it("offers the page's sections when a short topic cannot be answered directly", async () => {
     const intro = { ...hygieneChunk, chunkId: 10, heading: "Treatments and prices", score: 0.77 };
     const { deps } = fakeDeps({
-      commands: [{ cmd: "answer_from_knowledge", query: "prices" }],
+      commands: [{ cmd: "answer_from_knowledge", query: "treatments" }],
       chunks: [intro, { ...hygieneChunk, score: 0.72 }, { ...fillingChunk, score: 0.7 }, { ...hoursChunk, score: 0.69 }],
       composed: "NO_ANSWER",
     });
-    const r = await runExecutor(ctx({ visitorText: "prices" }), deps);
+    const r = await runExecutor(ctx({ visitorText: "treatments" }), deps);
     expect(r.act).toBe("clarify");
     expect(r.fallbacks).toBe(0);
     expect(r.segments[0]!.options).toEqual(["Check-ups and hygiene", "Fillings and root canal treatment"]);
@@ -519,5 +534,129 @@ describe("command validation", () => {
     expect(r.act).toBe("error");
     expect(r.trace.error).toMatch(/planner/);
     expect(r.segments[0]!.text).toContain("020 7946 0321");
+  });
+});
+
+describe("next steps from labelled turns", () => {
+  const weekHours: ScoredChunk = {
+    ...hoursChunk,
+    text: "| Monday | 8am to 6pm |\n| Tuesday | 8am to 8pm |\n| Wednesday | 8am to 6pm |\n| Thursday | 8am to 8pm |\n| Friday | 8am to 5pm |\n| Saturday | 9am to 1pm |\n| Sunday | Closed |",
+  };
+  const at = (iso: string) => () => Date.parse(iso);
+
+  it("stays quiet once the team has replied, even while contact details were being asked for", async () => {
+    const { deps } = fakeDeps();
+    const r = await runExecutor(
+      ctx({ visitorText: "yes please, thank you", status: "handed_over", flow: { name: "handover", step: "name", slots: {} }, teamReplied: true }),
+      deps,
+    );
+    expect(r.segments).toEqual([]);
+  });
+
+  it("asks what a bill question is about before the contact details", async () => {
+    const { deps } = fakeDeps({ commands: [{ cmd: "handover", reason: "visitor_request" }] });
+    const r = await runExecutor(ctx({ visitorText: "can I speak to someone about my bill please" }), deps);
+    expect(r.flow?.step).toBe("details");
+    expect(r.segments[1]!.text).toMatch(/invoice number/);
+  });
+
+  it("repeats the 999 advice when the severity answer has a red flag", async () => {
+    const { deps } = fakeDeps();
+    const r = await runExecutor(
+      ctx({ visitorText: "10, and it's hard to swallow", status: "handed_over", flow: { name: "handover", step: "details", slots: {} } }),
+      deps,
+    );
+    expect(r.segments[0]!.text).toMatch(/call 999/);
+    expect(r.flow?.step).toBe("name");
+  });
+
+  it("steers back after an out-of-scope question", async () => {
+    const { deps } = fakeDeps({ commands: [{ cmd: "cannot_handle", reason: "out_of_scope" }] });
+    const r = await runExecutor(ctx({ visitorText: "what's the weather tomorrow" }), deps);
+    expect(r.segments[0]!.text).not.toMatch(/I can only help/);
+    expect(r.segments[0]!.options).toEqual(T.STEER_BACK_OPTIONS);
+  });
+
+  it("offers to ask the team when it can't answer, and hands over on yes", async () => {
+    const { deps } = fakeDeps({ commands: [{ cmd: "answer_from_knowledge", query: "botox" }], chunks: [] });
+    const r = await runExecutor(ctx({ visitorText: "do you do botox" }), deps);
+    expect(r.segments[0]!.options).toEqual(T.ASK_TEAM_OPTIONS);
+
+    const yes = await runExecutor(ctx({ visitorText: "Yes, ask the team", history: [{ role: "bot", text: r.segments[0]!.text }] }), deps);
+    expect(yes.handover).toEqual({ reason: "visitor_request", trigger: "visitor_button" });
+    const no = await runExecutor(ctx({ visitorText: "No thanks", history: [{ role: "bot", text: r.segments[0]!.text }] }), deps);
+    expect(no.handover).toBeNull();
+    expect(no.act).toBe("acknowledged");
+  });
+
+  it("does not serve a weak match about a different topic as the answer", async () => {
+    const sedation = { ...hygieneChunk, chunkId: 30, heading: "Do you offer sedation?", text: "We do not offer sedation at the practice.", score: 0.71 };
+    const { deps } = fakeDeps({
+      commands: [{ cmd: "answer_from_knowledge", query: "Do you offer treatment for sleep apnoea" }],
+      chunks: [sedation],
+      composed: "We do not offer sedation at the practice [1].",
+    });
+    const r = await runExecutor(ctx({ visitorText: "Do you offer treatment for sleep apnoea?" }), deps);
+    expect(r.act).toBe("blocked");
+    expect(r.trace.guardrails).toContainEqual(expect.objectContaining({ rule: "off_topic", result: "dropped" }));
+  });
+
+  it("answers 'are you open right now' from the published hours and the practice clock", async () => {
+    const { deps, calls } = fakeDeps({ chunks: [weekHours] });
+    const open = await runExecutor(ctx({ visitorText: "are you open right now?" }), { ...deps, now: at("2026-10-26T10:00:00Z") });
+    expect(calls.plan).toBe(0);
+    expect(open.segments[0]!.text).toBe("Yes, we're open now until 6pm today.");
+    expect(open.segments[0]!.sources[0]!.anchor).toBe("opening-hours");
+    expect(open.answered).toBe(1);
+
+    const sunday = await runExecutor(ctx({ visitorText: "are you open today?" }), { ...deps, now: at("2026-10-25T12:00:00Z") });
+    expect(sunday.segments[0]!.text).toBe("We're closed right now. We open again tomorrow at 8am.");
+  });
+
+  it("offers a short price menu for a bare 'prices'", async () => {
+    const { deps, calls } = fakeDeps({ chunks: [hygieneChunk] });
+    const r = await runExecutor(ctx({ visitorText: "prices" }), deps);
+    expect(calls.plan).toBe(0);
+    expect(r.segments[0]!.options).toEqual(T.PRICE_OPTIONS);
+    expect(r.segments[0]!.sources[0]!.slug).toBe("treatments");
+  });
+
+  it("explains the NHS position to a new NHS patient and asks which route", async () => {
+    const nhs = { ...hygieneChunk, chunkId: 40, heading: "Are you taking new NHS patients?", text: "We are accepting new NHS patients under 18. Adults join a waiting list.", score: 0.95 };
+    const flow = { name: "booking_request" as const, step: "care", slots: { reason: "Check-up", patient: "new" } };
+    const { deps } = fakeDeps({ chunks: [nhs], composed: "We are accepting new NHS patients under 18 [1]." });
+    const r = await runExecutor(ctx({ visitorText: "NHS", flow }), deps);
+    expect(r.segments.map((s) => s.kind)).toEqual(["answer", "flow"]);
+    expect(r.segments[1]!.options).toEqual(["For a child", "Join the waiting list", "Book privately"]);
+
+    const priv = await runExecutor(ctx({ visitorText: "Book privately", flow: r.flow }), deps);
+    expect(priv.flow?.slots.nhs_route).toBe("private");
+    expect(priv.segments.at(-1)!.text).toMatch(/days or times/);
+  });
+
+  it("dates 'tomorrow' and asks for the part of the day when only a day was given", async () => {
+    const flow = { name: "booking_request" as const, step: "preferred_time", slots: { reason: "Check-up", patient: "existing", care: "private" } };
+    const { deps } = fakeDeps();
+    const r = await runExecutor(ctx({ visitorText: "tomorrow", flow }), { ...deps, now: at("2026-10-25T18:00:00Z") });
+    expect(r.flow?.slots.preferred_time).toBe("tomorrow (Mon 26 Oct)");
+    expect(r.segments.at(-1)!.options).toEqual(["Morning", "Afternoon", "Evening", "Any time"]);
+  });
+
+  it("says the request is ready when Book is tapped again at the summary", async () => {
+    const flow = {
+      name: "booking_request" as const,
+      step: "confirm",
+      slots: { reason: "Check-up", patient: "existing", care: "private", preferred_time: "Tuesday evenings", name: "‹NAME_1›", phone: "‹PHONE_1›" },
+    };
+    const { deps } = fakeDeps();
+    const r = await runExecutor(ctx({ visitorText: null, action: "book", flow }), deps);
+    expect(r.segments.map((s) => s.text)).toEqual(["Your request is ready. Shall I send it to the team?"]);
+  });
+
+  it("closes politely when the visitor says no to anything else", async () => {
+    const { deps, calls } = fakeDeps();
+    const r = await runExecutor(ctx({ visitorText: "no thanks", history: [{ role: "bot", text: T.ACKNOWLEDGE }] }), deps);
+    expect(calls.plan).toBe(0);
+    expect(r.segments[0]!.text).toBe(T.OFFER_DECLINED);
   });
 });

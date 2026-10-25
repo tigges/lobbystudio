@@ -42,14 +42,21 @@ function nextStep(slots: Record<string, string>): ContactSlot | "waiting" {
   return CONTACT_SLOTS.find((s) => !slots[s]) ?? "waiting";
 }
 
-export function startContact(known: Record<string, string>): { flow: FlowState; prompt: string | null; options: string[] } {
+/** Details are asked for first when one question gives the team what they need to act, e.g. an invoice number. */
+export function startContact(
+  known: Record<string, string>,
+  detailsPrompt: string | null = null,
+): { flow: FlowState; prompt: string | null; options: string[] } {
+  if (detailsPrompt) return { flow: { name: "handover", step: "details", slots: known }, prompt: detailsPrompt, options: [] };
   const step = nextStep(known);
   return { flow: { name: "handover", step, slots: known }, prompt: step === "waiting" ? null : PROMPTS[step], options: CONTACT_OPTIONS };
 }
 
 export function isCollectingContact(flow: FlowState | null): flow is FlowState {
-  return flow?.name === "handover" && (CONTACT_SLOTS as readonly string[]).includes(flow.step);
+  return flow?.name === "handover" && (flow.step === "details" || (CONTACT_SLOTS as readonly string[]).includes(flow.step));
 }
+
+const MAX_DETAILS = 400;
 
 /**
  * One visitor message while contact details are being collected. Returns the reply (null to stay
@@ -59,8 +66,19 @@ export function collectContact(
   flow: FlowState,
   text: string,
 ): { flow: FlowState; reply: string | null; options: string[]; changed: boolean } {
-  const step = flow.step as ContactSlot;
   const t = text.trim();
+  if (flow.step === "details") {
+    const slots = DECLINE.test(t) ? flow.slots : { ...flow.slots, details: t.slice(0, MAX_DETAILS) };
+    const next = nextStep(slots);
+    const lead = "Thanks, I've added that for the team.";
+    return {
+      flow: { ...flow, step: next, slots },
+      reply: next === "waiting" ? `${lead} They'll reply here soon.` : `${lead} ${PROMPTS[next]}`,
+      options: next === "waiting" ? [] : CONTACT_OPTIONS,
+      changed: true,
+    };
+  }
+  const step = flow.step as ContactSlot;
   if (DECLINE.test(t)) {
     return { flow: { ...flow, step: "waiting" }, reply: "No problem. The team will reply here.", options: [], changed: false };
   }

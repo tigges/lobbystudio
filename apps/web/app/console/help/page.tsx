@@ -19,7 +19,7 @@ const STEPS = [
     img: "01-visitor-asks-for-team.webp",
     body: [
       "Visitors chat with the assistant on the practice website. It answers from the practice's own pages and shows a source link under each answer.",
-      "The conversation comes to you when the visitor presses “Talk to the practice”, mentions pain, swelling, bleeding or an injury, asks for clinical advice, or raises a complaint or a question about their records. The visitor sees a banner saying the team will reply in the chat, and the assistant asks for their name and phone number so you can always get back to them.",
+      "The conversation comes to you when the visitor presses “Talk to the practice”, mentions pain, swelling, bleeding or an injury, asks for clinical advice, or raises a complaint or a question about their records. The visitor sees a banner saying the team will reply in the chat, and the assistant asks for their name and phone number so you can always get back to them. For pain or an injury it first asks how bad it is and whether there is swelling or bleeding; for a bill it asks what it's about and for the invoice number. Their answer appears under “What they told the assistant”. Once you reply, the assistant stops asking questions and leaves the conversation to you.",
     ],
   },
   {

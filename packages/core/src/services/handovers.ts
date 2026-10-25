@@ -84,7 +84,7 @@ export async function setHandoverContact(opts: { tenantId: string; conversationI
     .orderBy(desc(handovers.id))
     .limit(1);
   if (!handover) throw new Error("no handover for this conversation");
-  const contact: Record<string, string> = {};
+  const contact: Record<string, string> = handover.contact.details ? { details: handover.contact.details } : {};
   for (const [key, raw] of [
     ["name", opts.name],
     ["phone", opts.phone],

@@ -19,6 +19,7 @@ export function plannerSystemPrompt(bundle: Bundle): string {
     "",
     "# Flow catalogue",
     `- booking_request: collects slots ${BOOKING_SLOTS.join(", ")} in that order. patient is "new" or "existing"; care is "NHS", "private" or "not sure"; confirm is "yes" or "no".`,
+    `  nhs_route ("child", "waiting list" or "private") is only asked of a new NHS patient; time_of_day ("morning", "afternoon", "evening" or "any time") only when preferred_time names no part of the day.`,
     "- handover: passes the conversation to the practice team. Use the handover command, not start_flow.",
     "",
     "# Commands",
