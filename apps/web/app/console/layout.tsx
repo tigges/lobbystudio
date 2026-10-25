@@ -1,4 +1,7 @@
 import Link from "next/link";
+import { buildLabel } from "@/lib/build";
+import { SITE_TENANT } from "@/lib/site";
+import { TestChatToggle } from "./ui";
 
 export const dynamic = "force-dynamic";
 
@@ -25,9 +28,13 @@ export default function ConsoleLayout({ children }: { children: React.ReactNode 
               </Link>
             ))}
           </nav>
-          <Link href="/" className="ml-auto text-sm text-slate-500 hover:text-slate-800">
-            View site
-          </Link>
+          <div className="ml-auto flex items-center gap-3">
+            <span className="text-xs text-slate-400">{buildLabel()}</span>
+            <TestChatToggle tenant={SITE_TENANT} />
+            <Link href="/" className="text-sm text-slate-500 hover:text-slate-800">
+              View site
+            </Link>
+          </div>
         </div>
       </header>
       <main className="mx-auto max-w-6xl px-5 py-8">{children}</main>

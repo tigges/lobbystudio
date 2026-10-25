@@ -120,6 +120,7 @@ export async function listHandovers(tenantId: string) {
       createdAt: handovers.createdAt,
       repliedAt: handovers.repliedAt,
       lastMessage: sql<string | null>`(select m.text from ${messages} m where m.conversation_id = "handovers"."conversation_id" and m.role = 'visitor' order by m.id desc limit 1)`,
+      conversationStatus: sql<string>`(select c.status from ${conversations} c where c.id = "handovers"."conversation_id")`,
     })
     .from(handovers)
     .where(eq(handovers.tenantId, tenantId))

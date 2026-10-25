@@ -25,6 +25,8 @@ jobs:
           context: .
           platforms: linux/amd64
           push: true
+          build-args: |
+            GIT_COMMIT=${{ github.sha }}
           tags: |
             ghcr.io/${{ github.repository }}:latest
             ghcr.io/${{ github.repository }}:${{ github.sha }}
