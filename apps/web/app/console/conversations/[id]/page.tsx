@@ -3,7 +3,9 @@ import { notFound } from "next/navigation";
 import { conversationDetail } from "@dental-bot/core";
 import { label, OUTCOME_STYLE, when } from "@/lib/format";
 import { SITE_TENANT } from "@/lib/site";
+import { LabelChip, LabelForm } from "../../labels";
 import { Transcript } from "../../transcript";
+import { AdminNote } from "../../ui";
 
 export const metadata = { title: "Conversation" };
 
@@ -22,16 +24,26 @@ const GUARD_STYLE = {
   dropped: "bg-orange-100 text-orange-900",
 } as const;
 
-export default async function ConversationPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function ConversationPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ turn?: string }>;
+}) {
   const { id } = await params;
+  const focus = (await searchParams).turn;
   if (!UUID_RE.test(id)) notFound();
   const detail = await conversationDetail(SITE_TENANT, id);
   if (!detail) notFound();
-  const { conversation: c, messages, turns, bookings, versionNumber } = detail;
+  const { conversation: c, messages, turns, bookings, versionNumber, labels } = detail;
+  const path = `/console/conversations/${c.id}`;
+  const labelled = turns.filter((t) => labels.has(t.id)).length;
   const totalCost = turns.reduce((s, t) => s + Number(t.costUsd), 0);
 
   return (
     <div className="space-y-6">
+      <AdminNote>The turn ledger and labels are for the platform owner. The practice team works from Handovers.</AdminNote>
       <div className="flex flex-wrap items-center gap-3">
         <Link href="/console/conversations" className="text-sm text-slate-500 hover:text-slate-800">
           ← Conversations
@@ -72,19 +84,36 @@ export default async function ConversationPage({ params }: { params: Promise<{ i
         </section>
 
         <section className="space-y-3">
-          <h2 className="font-semibold text-slate-900">Turn ledger</h2>
-          <p className="text-xs text-slate-500">Inputs are stored with personal data replaced by tokens, exactly as the model saw them.</p>
+          <div className="flex items-baseline gap-3">
+            <h2 className="font-semibold text-slate-900">Turn ledger</h2>
+            <span className="text-xs text-slate-500">
+              {labelled} of {turns.length} labelled
+            </span>
+          </div>
+          <p className="text-xs text-slate-500">
+            Inputs are stored with personal data replaced by tokens, exactly as the model saw them. Open a turn to label it.
+          </p>
           {turns.map((t) => (
-            <details key={t.id} className="rounded-xl bg-white ring-1 ring-slate-200" open={turns.length <= 4}>
+            <details
+              key={t.id}
+              id={`turn-${t.index}`}
+              className={`scroll-mt-6 rounded-xl bg-white ring-1 ${focus === String(t.index) ? "ring-2 ring-violet-400" : "ring-slate-200"}`}
+              open={focus ? focus === String(t.index) : turns.length <= 4}
+            >
               <summary className="flex cursor-pointer flex-wrap items-center gap-x-4 gap-y-1 px-4 py-2.5 text-sm">
                 <span className="font-medium text-slate-900">#{t.index}</span>
                 <span className="min-w-0 flex-1 truncate font-mono text-xs text-slate-700">{t.input}</span>
                 <span className="text-xs text-slate-500">
+                  {t.build ? `build ${t.build} · ` : ""}
                   {t.llmMode} · {t.latencyMs} ms{t.firstTokenMs !== null ? ` (first ${t.firstTokenMs} ms)` : ""} · {t.inputTokens}/{t.outputTokens} tok · $
                   {Number(t.costUsd).toFixed(4)}
                 </span>
+                {labels.get(t.id) && <LabelChip label={labels.get(t.id)!.label} />}
                 <span className="text-xs text-slate-400">{when(t.createdAt)}</span>
               </summary>
+              <div className="border-t border-slate-100 bg-violet-50/40 px-4 py-3">
+                <LabelForm key={`${labels.get(t.id)?.label}:${labels.get(t.id)?.note}`} turnId={t.id} current={labels.get(t.id)?.label ?? null} note={labels.get(t.id)?.note ?? null} path={path} />
+              </div>
               <div className="grid gap-4 border-t border-slate-100 px-4 py-3 text-xs md:grid-cols-2">
                 <div>
                   <p className="mb-1 font-semibold uppercase tracking-wide text-slate-500">Commands</p>

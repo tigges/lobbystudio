@@ -158,7 +158,7 @@ export default async function HandoverPage({ params }: { params: Promise<{ id: s
         )}
 
         <Link href={`/console/conversations/${conversation.id}`} className="block text-sm text-harbour-700 hover:underline">
-          Open in conversation inspector →
+          Turn ledger (admin) →
         </Link>
       </aside>
     </div>

@@ -5,12 +5,14 @@ import {
   getDb,
   handovers,
   messages,
+  turnLabels,
   turns,
   versions,
   type Source,
 } from "@dental-bot/db";
 import { detokenise } from "../pii/detect.ts";
 import { vaultValues } from "../pii/vault.ts";
+import { labelsForConversation } from "./review.ts";
 
 export type WidgetMessage = {
   id: number;
@@ -86,7 +88,9 @@ export async function conversationDetail(tenantId: string, conversationId: strin
       .filter(([token]) => token.startsWith(`‹${kind}_`))
       .sort(([a], [b]) => Number(a.replace(/\D/g, "")) - Number(b.replace(/\D/g, "")))
       .at(-1)?.[1];
+  const labels = await labelsForConversation(tenantId, conversationId);
   return {
+    labels,
     typedContact: { name: lastOfKind("NAME"), phone: lastOfKind("PHONE") },
     conversation: conv,
     versionNumber: version?.number ?? null,
@@ -114,6 +118,12 @@ export async function listConversations(tenantId: string, limit = 100) {
       turns: sql<number>`(select count(*)::int from ${turns} t where t.conversation_id = "conversations"."id")`,
       costUsd: sql<number>`(select coalesce(sum(t.cost_usd), 0)::float from ${turns} t where t.conversation_id = "conversations"."id")`,
       firstMessage: sql<string | null>`(select m.text from ${messages} m where m.conversation_id = "conversations"."id" and m.role = 'visitor' order by m.id limit 1)`,
+      fallbackCount: conversations.fallbackCount,
+      handedOver: sql<boolean>`"conversations"."handed_over_at" is not null`,
+      hadBooking: sql<boolean>`exists (select 1 from ${bookingRequests} b where b.conversation_id = "conversations"."id")`,
+      hadOffer: sql<boolean>`exists (select 1 from ${messages} m where m.conversation_id = "conversations"."id" and m.kind = 'suggest')`,
+      hadCheck: sql<boolean>`exists (select 1 from ${turns} t, jsonb_array_elements(t.guardrails) g where t.conversation_id = "conversations"."id" and g->>'result' in ('dropped', 'blocked'))`,
+      labels: sql<string[]>`coalesce((select array_agg(l.label) from ${turnLabels} l where l.conversation_id = "conversations"."id"), '{}')`,
     })
     .from(conversations)
     .innerJoin(versions, eq(versions.id, conversations.versionId))
