@@ -244,19 +244,9 @@ export async function runExecutor(ctx: TurnContext, deps: ExecutorDeps, emit: Em
     handoverTrigger = "visitor_button";
     trace.plannerSkipped = "exit_button";
   } else if (ctx.action === "book" || text.toLowerCase() === T.BOOK_OPTION.toLowerCase() || (offerPending() && yesNo(text) === "yes")) {
-    // The "Book a check-up" button knows the reason; the offer's "Book an appointment" chip asks for it.
-    const tapped = !ctx.action;
     rebook = ctx.flow?.name === "booking_request";
-    commands =
-      rebook
-        ? []
-        : tapped
-          ? [{ cmd: "start_flow", flow: "booking_request" }]
-          : [
-              { cmd: "start_flow", flow: "booking_request" },
-              { cmd: "set_slot", slot: "reason", value: "Check-up" },
-            ];
-    trace.plannerSkipped = tapped ? "booking_offer" : "exit_button";
+    commands = rebook ? [] : [{ cmd: "start_flow", flow: "booking_request" }];
+    trace.plannerSkipped = ctx.action ? "exit_button" : "booking_offer";
   } else if (askTeamPending() && (text === T.ASK_TEAM_OPTIONS[0] || yesNo(text) === "yes")) {
     commands = [{ cmd: "handover", reason: "visitor_request" }];
     handoverTrigger = "visitor_button";

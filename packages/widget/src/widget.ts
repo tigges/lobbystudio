@@ -16,6 +16,7 @@ type Session = {
   versionNumber: number;
   build?: string;
   status: string;
+  booking?: boolean;
   practice: { name: string; phone: string };
   messages: Message[];
 };
@@ -76,6 +77,8 @@ class Widget {
   private input!: HTMLTextAreaElement;
   private sendBtn!: HTMLButtonElement;
   private banner!: HTMLDivElement;
+  private exits!: HTMLDivElement;
+  private bookBtn!: HTMLButtonElement;
   private versionEl!: HTMLSpanElement;
   private titleEl!: HTMLElement;
   private launcher!: HTMLButtonElement;
@@ -126,7 +129,9 @@ class Widget {
     this.log = el("div", { class: "log", "aria-live": "polite" }) as HTMLDivElement;
 
     const exits = el("div", { class: "exits" });
-    const book = el("button", { class: "chip" }, "Book a check-up");
+    const book = el("button", { class: "chip" }, "Book an appointment");
+    this.bookBtn = book as HTMLButtonElement;
+    this.exits = exits as HTMLDivElement;
     book.addEventListener("click", () => void this.send({ action: "book" }));
     const talk = el("button", { class: "chip" }, "Talk to the practice");
     talk.addEventListener("click", () => void this.send({ action: "handover" }));
@@ -220,13 +225,17 @@ class Widget {
     this.versionEl.title = `Assistant v${this.session.versionNumber}${this.session.build ? ` · build ${this.session.build}` : ""}`;
     this.log.replaceChildren();
     for (const m of this.session.messages) this.renderMessage(m);
-    this.setStatus(this.session.status);
+    this.setStatus(this.session.status, this.session.booking);
   }
 
-  private setStatus(status: string) {
+  private setStatus(status: string, booking?: boolean) {
     if (!this.session) return;
     this.session.status = status;
+    if (booking !== undefined) this.session.booking = booking;
     const handed = status === "handed_over";
+    // The fixed buttons are only offered when they'd start something: not mid-booking, not while the team has the chat.
+    this.exits.hidden = handed;
+    this.bookBtn.hidden = Boolean(this.session.booking);
     this.banner.hidden = !handed;
     this.banner.textContent = handed ? `You're talking to the ${this.session.practice.name} team. They'll reply here.` : "";
     // Still poll, more slowly, while the assistant has the chat: the team can step back in at any time.
@@ -329,7 +338,7 @@ class Widget {
     if (!this.session) await this.start();
     if (!this.session || this.busy) return;
     this.setBusy(true);
-    const label = input.text ?? (input.action === "book" ? "Book a check-up" : "Talk to the practice");
+    const label = input.text ?? (input.action === "book" ? "Book an appointment" : "Talk to the practice");
     this.renderMessage({ role: "visitor", kind: "text", text: label, sources: [], options: [], feedback: null, authorName: null });
 
     const segments = new Map<string, { row: HTMLDivElement; bubble: HTMLDivElement; message: Message }>();
@@ -403,7 +412,7 @@ class Widget {
         this.lastId = Math.max(this.lastId, messageId);
         this.decorate(s.row, s.message);
       }
-      this.setStatus(data.status);
+      this.setStatus(data.status, data.booking);
     } else if (event === "error") {
       throw new Error(data.message ?? "error");
     }

@@ -264,6 +264,8 @@ export const turns = pgTable(
     error: text("error"),
     /** Commit of the app that served the turn; null for turns recorded before builds were stamped. */
     build: text("build"),
+    /** The fixed rule that decided the turn without the planner, e.g. "open_now"; null when the planner decided. */
+    decidedBy: text("decided_by"),
     createdAt: ts("created_at").notNull().defaultNow(),
   },
   (t) => [uniqueIndex("turns_conversation_index").on(t.conversationId, t.index)],
