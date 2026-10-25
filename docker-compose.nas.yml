@@ -1,0 +1,54 @@
+# Self-hosted stack (e.g. Synology Container Manager → Project).
+# Put this file and a .env (copied from .env.nas.example) in the same project folder.
+name: lobbystudio
+
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: lobby
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: lobby_bot
+    volumes:
+      - ./postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lobby -d lobby_bot"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  web:
+    image: ghcr.io/tigges/lobbystudio:latest
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      RUN_SWEEPER: "1"
+      DATABASE_URL: postgres://lobby:${POSTGRES_PASSWORD}@db:5432/lobby_bot
+      PII_KEY: ${PII_KEY:?set PII_KEY in .env (32+ characters)}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      CONSOLE_PASSWORD: ${CONSOLE_PASSWORD:?set CONSOLE_PASSWORD in .env}
+    ports:
+      - "${WEB_PORT:-3080}:3000"
+    mem_limit: 1g
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 10s
+      start_period: 120s
+      retries: 3
+
+  # Public HTTPS without opening router ports. Create a tunnel in Cloudflare Zero Trust
+  # (Networks → Tunnels), point its public hostname at http://web:3000, and set the token in .env.
+  tunnel:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN:?set CLOUDFLARE_TUNNEL_TOKEN in .env, or delete the tunnel service}
+    depends_on:
+      - web

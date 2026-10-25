@@ -46,6 +46,22 @@ Other commands:
 
 Every boot runs the migrations and the idempotent seed (`scripts/start-web.sh`). The embedding model is baked into the image at build time.
 
+## Self-host (Synology NAS or any Docker host)
+
+Every push to `main` publishes `ghcr.io/tigges/lobbystudio:latest` (`.github/workflows/image.yml`, linux/amd64). `docker-compose.nas.yml` runs three containers:
+
+- **Postgres with pgvector**, with its data in `./postgres`. Back up that folder.
+- **The app**, on `WEB_PORT` (3080 by default).
+- **Optionally `cloudflared`**, for public HTTPS without opening router ports.
+
+On Synology (DSM 7.2 with Container Manager on an x86_64 "+" model):
+
+1. In File Station, create `docker/lobbystudio`. Upload `docker-compose.nas.yml` and a filled-in `.env`, copied from `.env.nas.example`.
+2. In Container Manager, go to Project → Create, pick that folder, and use the existing compose file. Start it.
+3. On your network, the site is at `http://<nas-ip>:3080`. The first boot seeds the database, which takes about a minute.
+4. For public access, create a Cloudflare Tunnel whose public hostname points at `http://web:3000`, and put its token in `.env`. Without a tunnel, delete the `tunnel` service.
+5. To update, use Container Manager → Image → `ghcr.io/tigges/lobbystudio` → Update, then restart the project.
+
 ## Layout
 
 ```
