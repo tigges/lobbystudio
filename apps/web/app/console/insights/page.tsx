@@ -124,6 +124,15 @@ export default async function InsightsPage({ searchParams }: { searchParams: Pro
       <div className="flex flex-wrap items-baseline gap-3">
         <h1 className="text-2xl font-semibold text-slate-900">Insights</h1>
         <span className="text-sm text-slate-500">Turns grouped by what happened. Click a row to see and label those turns.</span>
+        <span className="ml-auto flex items-center gap-2 text-xs text-slate-500">
+          Export all labels and notes
+          <a href="/console/insights/export?format=csv" className="rounded-lg border border-slate-300 bg-white px-2.5 py-1 font-medium text-slate-700 hover:bg-slate-50">
+            Spreadsheet (CSV)
+          </a>
+          <a href="/console/insights/export" className="rounded-lg border border-slate-300 bg-white px-2.5 py-1 font-medium text-slate-700 hover:bg-slate-50">
+            Full context (JSON)
+          </a>
+        </span>
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
@@ -197,13 +206,6 @@ export default async function InsightsPage({ searchParams }: { searchParams: Pro
             if (!count) return null;
             return <Row key={l.key} to={g(`label:${l.key}`)} on={selected === `label:${l.key}`} name={<LabelChip label={l.key} />} count={count} total={t} />;
           })}
-          {labelled > 0 && (
-            <li className="pt-2">
-              <a href="/console/insights/export" className="text-xs font-medium text-harbour-700 hover:underline">
-                Download all labels with their context (JSON) →
-              </a>
-            </li>
-          )}
         </Panel>
 
         <Panel title="Outcomes" hint="Conversations with a turn in this period. Opens the filtered conversation list.">
