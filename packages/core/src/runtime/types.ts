@@ -104,6 +104,8 @@ export type TurnResult = {
   status: "active" | "handed_over";
   handover: { reason: HandoverReason; trigger: "precheck" | "planner" | "visitor_button" } | null;
   booking: Record<string, string> | null;
+  /** Contact details collected for the open handover; set whenever they change. */
+  contact: Record<string, string> | null;
   act: BotAct;
   answered: number;
   fallbacks: number;

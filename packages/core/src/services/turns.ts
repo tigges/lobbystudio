@@ -234,8 +234,17 @@ export async function runTurn(opts: {
       conversationId: conv.id,
       reason: result.handover.reason,
       trigger: result.handover.trigger,
+      contact: result.contact ?? {},
       createdAt: now,
     });
+  } else if (result.contact) {
+    const [latest] = await db
+      .select({ id: handovers.id })
+      .from(handovers)
+      .where(and(eq(handovers.tenantId, opts.tenantId), eq(handovers.conversationId, conv.id)))
+      .orderBy(desc(handovers.id))
+      .limit(1);
+    if (latest) await db.update(handovers).set({ contact: result.contact }).where(eq(handovers.id, latest.id));
   }
 
   const somethingResolved = conv.answeredCount + result.answered > 0 || Boolean(conv.lastHumanAt);

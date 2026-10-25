@@ -80,7 +80,15 @@ export async function conversationDetail(tenantId: string, conversationId: strin
       .from(bookingRequests)
       .where(and(eq(bookingRequests.tenantId, tenantId), eq(bookingRequests.conversationId, conversationId)))
   ).map((b) => ({ ...b, slots: Object.fromEntries(Object.entries(b.slots).map(([k, v]) => [k, detokenise(v, values)])) }));
-  return { conversation: conv, versionNumber: version?.number ?? null, messages: msgs, turns: turnRows, handovers: handoverRows, bookings };
+  const reveal = (slots: Record<string, string>) => Object.fromEntries(Object.entries(slots).map(([k, v]) => [k, detokenise(v, values)]));
+  return {
+    conversation: conv,
+    versionNumber: version?.number ?? null,
+    messages: msgs,
+    turns: turnRows,
+    handovers: handoverRows.map((h) => ({ ...h, contact: reveal(h.contact) })),
+    bookings,
+  };
 }
 
 export async function listConversations(tenantId: string, limit = 100) {
@@ -119,6 +127,7 @@ export async function listHandovers(tenantId: string) {
       status: handovers.status,
       createdAt: handovers.createdAt,
       repliedAt: handovers.repliedAt,
+      contact: handovers.contact,
       lastMessage: sql<string | null>`(select m.text from ${messages} m where m.conversation_id = "handovers"."conversation_id" and m.role = 'visitor' order by m.id desc limit 1)`,
       conversationStatus: sql<string>`(select c.status from ${conversations} c where c.id = "handovers"."conversation_id")`,
     })
@@ -129,7 +138,11 @@ export async function listHandovers(tenantId: string) {
   const out = [];
   for (const r of rows) {
     const values = await vaultValues(tenantId, r.conversationId);
-    out.push({ ...r, lastMessage: r.lastMessage ? detokenise(r.lastMessage, values) : null });
+    out.push({
+      ...r,
+      lastMessage: r.lastMessage ? detokenise(r.lastMessage, values) : null,
+      contact: Object.fromEntries(Object.entries(r.contact).map(([k, v]) => [k, detokenise(v, values)])),
+    });
   }
   return out;
 }

@@ -18,7 +18,7 @@ export function plannerSystemPrompt(bundle: Bundle): string {
     procedures,
     "",
     "# Flow catalogue",
-    `- booking_request: collects slots ${BOOKING_SLOTS.join(", ")} in that order. confirm is "yes" or "no".`,
+    `- booking_request: collects slots ${BOOKING_SLOTS.join(", ")} in that order. patient is "new" or "existing"; care is "NHS", "private" or "not sure"; confirm is "yes" or "no".`,
     "- handover: passes the conversation to the practice team. Use the handover command, not start_flow.",
     "",
     "# Commands",

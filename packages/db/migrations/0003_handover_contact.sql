@@ -1,0 +1,1 @@
+ALTER TABLE "handovers" ADD COLUMN "contact" jsonb DEFAULT '{}'::jsonb NOT NULL;

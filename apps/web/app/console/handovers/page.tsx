@@ -37,6 +37,9 @@ export default async function HandoversPage() {
                 {label(h.reason)}
               </span>
               <span className="min-w-0 flex-1 truncate text-sm text-slate-800">{h.lastMessage ?? "—"}</span>
+              <span className="w-48 shrink-0 truncate text-xs text-slate-600">
+                {h.contact.name || h.contact.phone ? [h.contact.name, h.contact.phone].filter(Boolean).join(" · ") : <span className="text-slate-400">no contact yet</span>}
+              </span>
               <span className="w-20 text-xs text-slate-500">{displayStatus(h)}</span>
               <span className="w-28 text-right text-xs text-slate-500">{when(h.createdAt)}</span>
             </Link>
@@ -53,6 +56,8 @@ export default async function HandoversPage() {
                 <th className="px-4 py-2">Name</th>
                 <th className="px-4 py-2">Phone</th>
                 <th className="px-4 py-2">Reason</th>
+                <th className="px-4 py-2">Patient</th>
+                <th className="px-4 py-2">NHS / private</th>
                 <th className="px-4 py-2">Preferred time</th>
                 <th className="px-4 py-2">Received</th>
               </tr>
@@ -60,7 +65,7 @@ export default async function HandoversPage() {
             <tbody>
               {bookings.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="px-4 py-6 text-slate-500">
+                  <td colSpan={7} className="px-4 py-6 text-slate-500">
                     No booking requests yet.
                   </td>
                 </tr>
@@ -74,6 +79,8 @@ export default async function HandoversPage() {
                   </td>
                   <td className="px-4 py-2.5">{b.slots.phone ?? "—"}</td>
                   <td className="px-4 py-2.5">{b.slots.reason ?? "—"}</td>
+                  <td className="px-4 py-2.5">{b.slots.patient ?? "—"}</td>
+                  <td className="px-4 py-2.5">{b.slots.care ?? "—"}</td>
                   <td className="px-4 py-2.5">{b.slots.preferred_time ?? "—"}</td>
                   <td className="px-4 py-2.5 text-slate-500">{when(b.createdAt)}</td>
                 </tr>

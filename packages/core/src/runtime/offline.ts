@@ -52,7 +52,17 @@ export async function offlinePlan(ctx: TurnContext): Promise<PlannerResult> {
     } else if (step && step !== "done") {
       commands.push({ cmd: "set_slot", slot: step, value: text });
     } else if (ctx.flow.step === "change") {
-      const slot = /phone|number/i.test(text) ? "phone" : /name/i.test(text) ? "name" : /time|day/i.test(text) ? "preferred_time" : "reason";
+      const slot = /phone|number/i.test(text)
+        ? "phone"
+        : /name/i.test(text)
+          ? "name"
+          : /nhs|private/i.test(text)
+            ? "care"
+            : /new|existing/i.test(text)
+              ? "patient"
+              : /time|day/i.test(text)
+                ? "preferred_time"
+                : "reason";
       const value = text.replace(/^.*?\b(?:to|is)\b\s*/i, "");
       if (value && value !== text) commands.push({ cmd: "set_slot", slot, value });
     }
