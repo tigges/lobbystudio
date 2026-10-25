@@ -143,6 +143,14 @@ export async function runTurn(opts: {
     .limit(12);
   const history: HistoryItem[] = historyRows.reverse();
 
+  const [{ offered }] = (await db
+    .select({
+      offered: sql<boolean>`exists (select 1 from ${messages} m where m.conversation_id = "conversations"."id" and m.kind = 'suggest')
+        or exists (select 1 from ${bookingRequests} b where b.conversation_id = "conversations"."id")`,
+    })
+    .from(conversations)
+    .where(eq(conversations.id, conv.id))) as [{ offered: boolean }];
+
   const [{ n: turnIndex }] = (await db
     .select({ n: sql<number>`count(*)::int` })
     .from(turns)
@@ -168,6 +176,8 @@ export async function runTurn(opts: {
       history,
       bundle,
       lastBotAct: conv.lastBotAct,
+      answeredBefore: conv.answeredCount,
+      bookingOffered: offered || Boolean(conv.handedOverAt),
     },
     depsFor(mode),
     (e) => emit(e.type === "delta" ? { ...e, text: detokenise(e.text, values) } : e),

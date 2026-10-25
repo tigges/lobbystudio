@@ -253,6 +253,8 @@ class Widget {
 
   private renderMessage(m: Message): { row: HTMLDivElement; bubble: HTMLDivElement } {
     if (m.id) this.lastId = Math.max(this.lastId, m.id);
+    // Quick replies only make sense as answers to the latest message; older ones would send stale answers.
+    this.log.querySelectorAll(".options").forEach((o) => o.remove());
     const row = el("div", { class: `row ${m.role}` }) as HTMLDivElement;
     if (m.role === "staff") row.append(el("div", { class: "author" }, `${m.authorName ?? "Practice team"} · ${this.session?.practice.name ?? ""}`));
     const bubble = el("div", { class: "bubble" }, m.text) as HTMLDivElement;

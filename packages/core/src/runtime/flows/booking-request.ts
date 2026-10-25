@@ -5,7 +5,7 @@ export const BOOKING_SLOTS = ["reason", "patient", "care", "preferred_time", "na
 export type BookingSlot = (typeof BOOKING_SLOTS)[number];
 
 const PROMPTS: Record<Exclude<BookingSlot, "confirm">, string> = {
-  reason: "What would you like to book? For example a check-up, a hygienist appointment or a consultation.",
+  reason: "Happy to help. What would you like to book? Pick one below or tell me in your own words.",
   name: "Thanks. And what name should the team ask for?",
   phone: "What's the best phone number for the team to call you back on?",
   patient: "Are you new to the practice, or an existing patient?",
@@ -13,11 +13,25 @@ const PROMPTS: Record<Exclude<BookingSlot, "confirm">, string> = {
   preferred_time: "Which days or times usually suit you?",
 };
 
-/** Steps answered by tapping a quick reply; the chips are sent back as the visitor's text. */
+/** Steps with a short, fixed set of likely answers get quick replies; the chips are sent back as the visitor's text. */
 export const BOOKING_OPTIONS: Partial<Record<BookingSlot, string[]>> = {
+  reason: ["Check-up", "Hygienist", "Consultation"],
   patient: ["New patient", "Existing patient"],
   care: ["NHS", "Private", "Not sure"],
+  confirm: ["Yes, send it", "Change something"],
 };
+
+/** Free-text steps whose chips are only shortcuts: typed answers still go through the planner. */
+const EXACT_ONLY: readonly BookingSlot[] = ["reason"];
+
+/** The slot value when the visitor's text can be filled without the planner, else null. */
+export function quickReplyValue(step: BookingSlot, text: string): string | null {
+  const options = BOOKING_OPTIONS[step];
+  if (!options || step === "confirm" || text.includes("?")) return null;
+  const tapped = options.find((o) => o.toLowerCase() === text.trim().toLowerCase());
+  if (EXACT_ONLY.includes(step)) return tapped ?? null;
+  return validateSlot(step, text).ok ? text : null;
+}
 
 export function bookingOptions(step: BookingSlot | "done" | "change"): string[] {
   return step === "done" || step === "change" ? [] : (BOOKING_OPTIONS[step] ?? []);

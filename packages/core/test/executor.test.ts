@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { normaliseCommands, runExecutor } from "../src/runtime/executor.ts";
 import { validateSlot } from "../src/runtime/flows/booking-request.ts";
+import * as T from "../src/runtime/templates.ts";
 import type { ExecutorEvent } from "../src/runtime/types.ts";
 import { bundle, ctx, fakeDeps, fillingChunk, hoursChunk, hygieneChunk } from "./fixtures.ts";
 
@@ -84,7 +85,7 @@ describe("answer_from_knowledge", () => {
       composed: "A 30-minute hygienist appointment is £75 [1].",
     });
     const events: ExecutorEvent[] = [];
-    const r = await runExecutor(ctx({ visitorText: "how much is the hygienist" }), deps, (e) => events.push(e));
+    const r = await runExecutor(ctx({ visitorText: "how much is the hygienist", bookingOffered: true }), deps, (e) => events.push(e));
     expect(r.act).toBe("answered");
     expect(r.segments).toHaveLength(1);
     expect(r.segments[0]).toMatchObject({ kind: "answer", text: "A 30-minute hygienist appointment is £75." });
@@ -177,7 +178,7 @@ describe("answer_from_knowledge", () => {
       chunks: { "hygienist price": [hygieneChunk], "saturday hours": [hoursChunk] },
       composed: (q) => (q.includes("hygienist") ? "It is £75 [1]." : "On Saturday we open 9am to 1pm [1]."),
     });
-    const r = await runExecutor(ctx({ visitorText: "price and saturday?" }), deps);
+    const r = await runExecutor(ctx({ visitorText: "price and saturday?", bookingOffered: true }), deps);
     expect(r.answered).toBe(2);
     expect(r.segments.map((s) => s.sources[0]!.slug)).toEqual(["treatments", "contact"]);
   });
@@ -341,6 +342,80 @@ describe("booking quick replies", () => {
     expect(r.flow?.slots.patient).toBe("existing");
     expect(r.segments[0]!.options).toEqual(["NHS", "Private", "Not sure"]);
     expect(validateSlot("care", "I have Denplan insurance")).toEqual({ ok: true, value: "private" });
+  });
+});
+
+describe("booking offer", () => {
+  const parking = () =>
+    fakeDeps({
+      commands: [{ cmd: "answer_from_knowledge", query: "parking" }],
+      chunks: [hoursChunk],
+      composed: "On Saturday we open 9am to 1pm [1].",
+    });
+
+  it("offers a booking once after a question about visiting, with quick replies", async () => {
+    const { deps } = parking();
+    const r = await runExecutor(ctx({ visitorText: "Is there parking near the practice?" }), deps);
+    expect(r.segments.map((s) => s.kind)).toEqual(["answer", "suggest"]);
+    expect(r.segments[1]!.options).toEqual(["Book an appointment", "Not right now"]);
+    expect(r.segments[0]!.options).toEqual([]);
+
+    const again = await runExecutor(ctx({ visitorText: "Is there parking near the practice?", bookingOffered: true }), parking().deps);
+    expect(again.segments.map((s) => s.kind)).toEqual(["answer"]);
+  });
+
+  it("offers on the second answer, or on thanks, but never during a flow or after a handover", async () => {
+    const hours = () => fakeDeps({ commands: [{ cmd: "answer_from_knowledge", query: "saturday" }], chunks: [hoursChunk], composed: "On Saturday we open 9am to 1pm [1]." });
+    expect((await runExecutor(ctx({ visitorText: "open saturday" }), hours().deps)).segments.map((s) => s.kind)).toEqual(["answer"]);
+    expect((await runExecutor(ctx({ visitorText: "open saturday", answeredBefore: 1 }), hours().deps)).segments.at(-1)!.kind).toBe("suggest");
+
+    const thanks = await runExecutor(ctx({ visitorText: "great thanks", answeredBefore: 2 }), fakeDeps().deps);
+    expect(thanks.segments[0]).toMatchObject({ kind: "suggest", options: ["Book an appointment", "Not right now"] });
+    expect(thanks.affirmed).toBe(true);
+    const thanksAfterHandover = await runExecutor(ctx({ visitorText: "great thanks", answeredBefore: 2, bookingOffered: true }), fakeDeps().deps);
+    expect(thanksAfterHandover.segments[0]!.kind).toBe("acknowledge");
+  });
+
+  it("starts a booking that asks what for when the offer is taken, and accepts a polite no", async () => {
+    const history = [{ role: "bot" as const, text: T.BOOKING_OFFER }];
+    for (const text of ["Book an appointment", "yes please"]) {
+      const { deps, calls } = fakeDeps();
+      const r = await runExecutor(ctx({ visitorText: text, history }), deps);
+      expect(calls.plan).toBe(0);
+      expect(r.flow).toMatchObject({ name: "booking_request", step: "reason" });
+      expect(r.segments[0]!.options).toEqual(["Check-up", "Hygienist", "Consultation"]);
+    }
+    const { deps, calls } = fakeDeps();
+    const no = await runExecutor(ctx({ visitorText: "Not right now", history }), deps);
+    expect(calls.plan).toBe(0);
+    expect(no.segments[0]!.text).toBe(T.OFFER_DECLINED);
+  });
+});
+
+describe("quick replies", () => {
+  it("fills the appointment type only from a tapped chip; typed reasons go to the planner", async () => {
+    const flow = { name: "booking_request" as const, step: "reason", slots: {} };
+    const tapped = fakeDeps();
+    const r = await runExecutor(ctx({ visitorText: "Hygienist", flow }), tapped.deps);
+    expect(tapped.calls.plan).toBe(0);
+    expect(r.flow?.slots.reason).toBe("Hygienist");
+    const typed = fakeDeps({ commands: [{ cmd: "set_slot", slot: "reason", value: "a broken crown" }] });
+    await runExecutor(ctx({ visitorText: "a broken crown", flow }), typed.deps);
+    expect(typed.calls.plan).toBe(1);
+  });
+
+  it("offers yes or change on the summary, and a way to skip contact details after a handover", async () => {
+    const flow = { name: "booking_request" as const, step: "phone", slots: { reason: "Check-up", patient: "new", care: "NHS", preferred_time: "mornings", name: "‹NAME_1›" } };
+    const summary = await runExecutor(ctx({ visitorText: "‹PHONE_1›", flow }), fakeDeps({ commands: [{ cmd: "set_slot", slot: "phone", value: "‹PHONE_1›" }] }).deps);
+    expect(summary.segments.at(-1)!.options).toEqual(["Yes, send it", "Change something"]);
+    const change = await runExecutor(ctx({ visitorText: "Change something", flow: summary.flow }), fakeDeps().deps);
+    expect(change.flow?.step).toBe("change");
+
+    const handover = await runExecutor(ctx({ action: "handover", visitorText: null }), fakeDeps().deps);
+    expect(handover.segments.at(-1)!.options).toEqual(["I'd rather not say"]);
+    const skip = await runExecutor(ctx({ visitorText: "I'd rather not say", status: "handed_over", flow: handover.flow }), fakeDeps().deps);
+    expect(skip.flow?.step).toBe("waiting");
+    expect(skip.segments[0]!.options).toEqual([]);
   });
 });
 

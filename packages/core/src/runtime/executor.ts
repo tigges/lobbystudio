@@ -6,12 +6,12 @@ import {
   BOOKING_CHANGE_PROMPT,
   BOOKING_INVALID,
   BOOKING_SLOTS,
-  BOOKING_OPTIONS,
   BOOKING_TIME_NOTE,
   bookingDone,
   bookingOptions,
   bookingPrompt,
   nextBookingStep,
+  quickReplyValue,
   startBooking,
   validateSlot,
 } from "./flows/booking-request.ts";
@@ -42,6 +42,10 @@ type Emit = (event: ExecutorEvent) => void;
 const CONTEXT_MARGIN = 0.1;
 /** Queries this short that compose cannot answer are treated as a topic, not a question. */
 const TOPIC_MAX_WORDS = 3;
+/** Questions that suggest the visitor is planning a visit, so a booking offer after the first answer is welcome. */
+const VISIT_INTENT =
+  /\b(?:new patients?|regist\w*|join|taking on|accepting|how much|cost\w*|price\w*|fees?|park\w*|step-?free|wheelchair|access\w*|get there|find you|directions|first visit)\b/i;
+const OFFER_DECLINE = /^(?:not right now|not now|not yet|maybe later|no(?:,? thanks?(?: you)?)?|i'?m (?:ok|fine|good)(?:,? thanks?)?)[.! ]*$/i;
 
 class ReplyWriter {
   readonly segments: Segment[] = [];
@@ -197,7 +201,7 @@ export async function runExecutor(ctx: TurnContext, deps: ExecutorDeps, emit: Em
       const step = collectContact(ctx.flow, said);
       result.flow = step.flow;
       if (step.changed) result.contact = { ...step.flow.slots };
-      if (step.reply) out.template("flow", step.reply);
+      if (step.reply) out.template("flow", step.reply, [], step.options);
       trace.guardrails.push({ rule: "handover_contact", result: step.changed ? "hit" : "pass", detail: `${ctx.flow.step} → ${step.flow.step}` });
       return finish();
     }
@@ -220,15 +224,19 @@ export async function runExecutor(ctx: TurnContext, deps: ExecutorDeps, emit: Em
     commands = [{ cmd: "handover", reason: "visitor_request" }];
     handoverTrigger = "visitor_button";
     trace.plannerSkipped = "exit_button";
-  } else if (ctx.action === "book") {
+  } else if (ctx.action === "book" || text.toLowerCase() === T.BOOK_OPTION.toLowerCase() || (offerPending() && yesNo(text) === "yes")) {
+    // The "Book a check-up" button knows the reason; the offer's "Book an appointment" chip asks for it.
+    const tapped = !ctx.action;
     commands =
       ctx.flow?.name === "booking_request"
         ? []
-        : [
-            { cmd: "start_flow", flow: "booking_request" },
-            { cmd: "set_slot", slot: "reason", value: "Check-up" },
-          ];
-    trace.plannerSkipped = "exit_button";
+        : tapped
+          ? [{ cmd: "start_flow", flow: "booking_request" }]
+          : [
+              { cmd: "start_flow", flow: "booking_request" },
+              { cmd: "set_slot", slot: "reason", value: "Check-up" },
+            ];
+    trace.plannerSkipped = tapped ? "booking_offer" : "exit_button";
   } else {
     const pre = clinicalPrecheck(text);
     trace.guardrails.push(
@@ -243,14 +251,24 @@ export async function runExecutor(ctx: TurnContext, deps: ExecutorDeps, emit: Em
     } else if (bookingStep === "confirm" && yesNo(text)) {
       commands = [{ cmd: "set_slot", slot: "confirm", value: yesNo(text)! }];
       trace.plannerSkipped = "deterministic_confirm";
-    } else if (bookingStep && bookingStep in BOOKING_OPTIONS && !text.includes("?") && validateSlot(bookingStep, text).ok) {
-      commands = [{ cmd: "set_slot", slot: bookingStep, value: text }];
+    } else if (bookingStep && bookingStep !== "done" && bookingStep !== "change" && quickReplyValue(bookingStep, text) !== null) {
+      commands = [{ cmd: "set_slot", slot: bookingStep, value: quickReplyValue(bookingStep, text)! }];
       trace.plannerSkipped = "deterministic_option";
+    } else if (offerPending() && OFFER_DECLINE.test(text)) {
+      result.act = "acknowledged";
+      trace.plannerSkipped = "booking_offer_declined";
+      out.template("acknowledge", T.OFFER_DECLINED);
+      return finish();
     } else if (isAffirmation(text)) {
       result.affirmed = true;
       result.act = "acknowledged";
       trace.plannerSkipped = "affirmation";
-      out.template("acknowledge", T.ACKNOWLEDGE);
+      if (mayOffer() && (ctx.answeredBefore ?? 0) > 0) {
+        trace.guardrails.push({ rule: "booking_offer", result: "hit", detail: "on thanks" });
+        out.template("suggest", T.ACKNOWLEDGE_WITH_OFFER, [], T.OFFER_OPTIONS);
+      } else {
+        out.template("acknowledge", T.ACKNOWLEDGE);
+      }
       return finish();
     } else if (!ctx.flow && isGreeting(text)) {
       result.act = "acknowledged";
@@ -367,6 +385,12 @@ export async function runExecutor(ctx: TurnContext, deps: ExecutorDeps, emit: Em
   }
   result.flow = flow;
 
+  const answeredTotal = (ctx.answeredBefore ?? 0) + result.answered;
+  if (!flow && result.act === "answered" && result.answered > 0 && mayOffer() && (answeredTotal >= 2 || VISIT_INTENT.test(text))) {
+    trace.guardrails.push({ rule: "booking_offer", result: "hit", detail: answeredTotal >= 2 ? "second answer" : "visit question" });
+    out.template("suggest", T.BOOKING_OFFER, [], T.OFFER_OPTIONS);
+  }
+
   if (out.segments.length === 0) {
     result.act = "fallback";
     result.fallbacks += 1;
@@ -382,13 +406,23 @@ export async function runExecutor(ctx: TurnContext, deps: ExecutorDeps, emit: Em
         : [];
     out.template("handover", T.handoverMessage(practice, reason), sources);
     const contact = startContact(knownContact(ctx.flow, text));
-    if (contact.prompt) out.template("flow", contact.prompt);
+    if (contact.prompt) out.template("flow", contact.prompt, [], contact.options);
     result.handover = { reason, trigger };
     result.contact = { ...contact.flow.slots };
     result.status = "handed_over";
     result.flow = contact.flow;
     result.act = "handover";
     result.topic = `handover:${reason}`;
+  }
+
+  /** One gentle booking offer per conversation, and none once a booking or the team is involved. */
+  function mayOffer() {
+    return !ctx.bookingOffered && !ctx.flow;
+  }
+
+  function offerPending() {
+    const lastBot = ctx.history.findLast((h) => h.role === "bot")?.text;
+    return lastBot === T.BOOKING_OFFER || lastBot === T.ACKNOWLEDGE_WITH_OFFER;
   }
 
   async function answer(query: string) {
