@@ -112,9 +112,11 @@ class Widget {
     this.titleEl = el("strong", {}, "Chat");
     title.append(this.titleEl, el("span", {}, "Practice assistant"));
     this.versionEl = el("span", { class: "version", title: "Serving version" }, "v–");
+    const fresh = el("button", { class: "text-btn", title: "Start a new conversation" }, "New chat");
+    fresh.addEventListener("click", () => void this.newChat());
     const close = el("button", { class: "icon-btn", "aria-label": "Close chat" }, "×");
     close.addEventListener("click", () => this.close());
-    header.append(avatar, title, this.versionEl, close);
+    header.append(avatar, title, this.versionEl, fresh, close);
 
     this.banner = el("div", { class: "banner" }) as HTMLDivElement;
     this.banner.hidden = true;
@@ -174,6 +176,22 @@ class Widget {
     this.panel.hidden = true;
     this.launcher.hidden = false;
     sessionStorage.removeItem(`${STORE}:open`);
+  }
+
+  private async newChat() {
+    if (this.busy) return;
+    localStorage.removeItem(`${STORE}:conversation`);
+    this.session = null;
+    this.lastId = 0;
+    if (this.pollTimer !== null) {
+      clearInterval(this.pollTimer);
+      this.pollTimer = null;
+    }
+    this.banner.hidden = true;
+    this.stars.querySelectorAll(".star").forEach((s) => s.classList.remove("on"));
+    (this.stars.firstChild as HTMLElement).textContent = "Rate chat";
+    await this.start();
+    this.input.focus();
   }
 
   private async start() {
