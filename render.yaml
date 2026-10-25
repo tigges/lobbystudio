@@ -1,12 +1,7 @@
 # Render Blueprint. Uses the existing Postgres instance "lobbystudio" (Frankfurt).
-envVarGroups:
-  - name: lobbystudio-shared
-    envVars:
-      - key: PII_KEY
-        generateValue: true
-      - key: NODE_ENV
-        value: production
-
+# A single free web service also runs the outcome sweep (RUN_SWEEPER=1). To move the sweep to a
+# dedicated worker later, add a `type: worker` service with `dockerCommand: sh scripts/start-worker.sh`
+# and drop RUN_SWEEPER here.
 services:
   - type: web
     name: lobbystudio
@@ -17,7 +12,12 @@ services:
     healthCheckPath: /api/health
     autoDeploy: true
     envVars:
-      - fromGroup: lobbystudio-shared
+      - key: NODE_ENV
+        value: production
+      - key: RUN_SWEEPER
+        value: "1"
+      - key: PII_KEY
+        generateValue: true
       - key: DATABASE_URL
         fromDatabase:
           name: lobbystudio
@@ -26,18 +26,3 @@ services:
         sync: false
       - key: CONSOLE_PASSWORD
         sync: false
-
-  - type: worker
-    name: lobbystudio-worker
-    runtime: docker
-    region: frankfurt
-    plan: 0.5c-512mb
-    dockerfilePath: ./Dockerfile
-    dockerCommand: sh scripts/start-worker.sh
-    autoDeploy: true
-    envVars:
-      - fromGroup: lobbystudio-shared
-      - key: DATABASE_URL
-        fromDatabase:
-          name: lobbystudio
-          property: connectionString

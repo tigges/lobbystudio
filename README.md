@@ -38,12 +38,11 @@ Other commands:
 
 ## Deploy (Render)
 
-`render.yaml` is a Render Blueprint for two services, built from the root `Dockerfile` in Frankfurt:
+`render.yaml` is a Render Blueprint for a single free web service, `lobbystudio`, built from the root `Dockerfile` in Frankfurt. It serves the site, widget API and console.
 
-- `lobbystudio`: the web service, serving the site, widget API and console
-- `lobbystudio-worker`: the outcome sweep
-
-Both read `DATABASE_URL` from the existing Render Postgres instance named `lobbystudio`. `PII_KEY` is generated once and shared through an environment group, and Render prompts for `ANTHROPIC_API_KEY` and `CONSOLE_PASSWORD` when the Blueprint is created.
+- **Outcome sweep:** `RUN_SWEEPER=1` makes the web service also run the sweep, so no paid background worker is needed. `apps/worker` remains for hosts where a separate worker is cheap. An advisory lock keeps two sweepers from overlapping.
+- **Database:** `DATABASE_URL` comes from the existing Render Postgres instance named `lobbystudio`.
+- **Secrets:** `PII_KEY` is generated once by Render. Render prompts for `ANTHROPIC_API_KEY` and `CONSOLE_PASSWORD` when the Blueprint is created.
 
 Every boot runs the migrations and the idempotent seed (`scripts/start-web.sh`). The embedding model is baked into the image at build time.
 
