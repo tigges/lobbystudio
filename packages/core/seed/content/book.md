@@ -1,6 +1,6 @@
 ## How to book
 
-- **Booking request:** use the chat on this site and choose "Book a check-up". The assistant will take your name, phone number and preferred times, and the team will call you back to confirm, usually the same working day.
+- **Booking request:** use the chat on this site and choose "Book an appointment". The assistant will take your name, phone number and preferred times, and the team will call you back to confirm, usually the same working day.
 - **By phone:** call 020 7946 0321 during opening hours.
 
 We do not take bookings by email.

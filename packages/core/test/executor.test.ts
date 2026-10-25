@@ -188,7 +188,8 @@ describe("booking_request flow", () => {
   it("runs the slots in order and creates a booking request on confirmation", async () => {
     let flow = null as ReturnType<typeof ctx>["flow"];
     const steps: [string | null, "book" | null, unknown[], RegExp][] = [
-      [null, "book", [], /new to the practice/],
+      [null, "book", [], /What would you like to book/],
+      ["Check-up", null, [], /new to the practice/],
       ["New patient", null, [], /NHS or private/],
       ["NHS", null, [], /child under 18/],
       ["Join the waiting list", null, [], /days or times/],

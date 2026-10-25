@@ -29,6 +29,7 @@ export type TurnEvent =
       type: "done";
       turnId: number;
       status: "active" | "handed_over";
+      booking: boolean;
       messages: { segmentId: string; messageId: number }[];
     };
 
@@ -50,6 +51,8 @@ export async function startSession(opts: {
   conversationId: string;
   versionNumber: number;
   status: string;
+  /** A booking request is in progress, so the widget hides its own Book button. */
+  booking: boolean;
   practice: { name: string; phone: string };
   messages: WidgetMessage[];
 }> {
@@ -68,6 +71,7 @@ export async function startSession(opts: {
         conversationId: conv.id,
         versionNumber: bundle.versionNumber,
         status: conv.status,
+        booking: (conv.flow as FlowState | null)?.name === "booking_request",
         practice: bundle.practice,
         messages: await readableMessages(opts.tenantId, conv.id),
       };
@@ -99,12 +103,13 @@ export async function startSession(opts: {
     conversationId: conv!.id,
     versionNumber: bundle.versionNumber,
     status: conv!.status,
+    booking: false,
     practice: bundle.practice,
     messages: await readableMessages(opts.tenantId, conv!.id),
   };
 }
 
-const ACTION_LABELS = { book: "Book a check-up", handover: "Talk to the practice" } as const;
+const ACTION_LABELS = { book: "Book an appointment", handover: "Talk to the practice" } as const;
 
 export async function runTurn(opts: {
   tenantId: string;
@@ -295,7 +300,7 @@ export async function runTurn(opts: {
     });
   }
 
-  emit({ type: "done", turnId: turn!.id, status: result.status, messages: messageIds });
+  emit({ type: "done", turnId: turn!.id, status: result.status, booking: result.flow?.name === "booking_request", messages: messageIds });
   return { result, turnId: turn!.id };
 }
 
