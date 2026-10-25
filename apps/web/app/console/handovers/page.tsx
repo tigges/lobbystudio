@@ -98,7 +98,7 @@ export default async function HandoversPage() {
                   {online && (
                     <td className="px-4 py-2.5">
                       {b.channel === "online" ? (
-                        <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700 ring-1 ring-emerald-100" title={b.system ?? ""}>
+                        <span className="whitespace-nowrap rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700 ring-1 ring-emerald-100" title={b.system ?? ""}>
                           Booked · {b.externalRef}
                         </span>
                       ) : (
