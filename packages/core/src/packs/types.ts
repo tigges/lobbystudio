@@ -49,10 +49,17 @@ export type Pack = {
   online: {
     slotPrompt(slots: Record<string, string>): string;
     noTimes: string;
+    /** After the visitor turns the times down: more times, another day or a call-back. */
+    moreTimes: string;
     slotInvalid: string;
     booked(slots: Record<string, string>, b: Practice): string;
     failed(slots: Record<string, string>): string;
   } | null;
+  /**
+   * Questions about a service the content doesn't cover, e.g. wedding hair: when there's no answer, they go
+   * straight to the team with the visitor's contact details rather than ending at "I can't answer that".
+   */
+  enquiry?: { pattern: RegExp; message(b: Practice): string };
   /** The page and section anchors the fixed handover messages cite. */
   handoverSources: { slug: string; urgent: RegExp; clinical: RegExp };
 };
