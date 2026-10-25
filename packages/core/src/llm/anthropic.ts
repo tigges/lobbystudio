@@ -7,6 +7,9 @@ export function anthropicKey(): string | undefined {
 
 export type Usage = { inputTokens: number; outputTokens: number };
 
+/** Some models think by default, which can spend the whole small token budget before any text. */
+const NO_THINKING = { type: "disabled" } as const;
+
 type Message = { role: "user" | "assistant"; content: string };
 
 async function post(body: unknown, signal?: AbortSignal): Promise<Response> {
@@ -43,6 +46,7 @@ export async function callTool<T>(opts: {
   const res = await post({
     model: opts.model,
     max_tokens: opts.maxTokens ?? 400,
+    thinking: NO_THINKING,
     system: opts.system,
     messages: opts.messages,
     tools: [opts.tool],
@@ -81,6 +85,7 @@ export function streamText(opts: {
       const res = await post({
         model: opts.model,
         max_tokens: opts.maxTokens ?? 350,
+        thinking: NO_THINKING,
         stream: true,
         system: opts.system,
         messages: opts.messages,
