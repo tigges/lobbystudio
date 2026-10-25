@@ -25,7 +25,7 @@ if (existing && !anyDeployment) {
   console.log("[seed] found an incomplete earlier seed (nothing promoted); clearing it and seeding again");
   await db.execute(sql`truncate table
     tenants, content_versions, content_pages, chunks, passages, versions, deployments, deployment_events,
-    conversations, messages, turns, pii_vault, handovers, labelled_answers, booking_requests
+    conversations, messages, turns, turn_labels, pii_vault, handovers, labelled_answers, booking_requests
     restart identity`);
 }
 
