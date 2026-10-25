@@ -339,7 +339,17 @@ export const labelledAnswers = pgTable("labelled_answers", {
   answer: text("answer").notNull(),
   author: text("author").notNull(),
   createdAt: ts("created_at").notNull().defaultNow(),
+  /** The one question the reply answers, searched for when a later visitor asks the same thing. */
+  asked: text("asked"),
+  /** "published" answers are searched with the website; "held" wait for the team; "removed" were undone. */
+  status: text("status").$type<LearnedStatus>().notNull().default("held"),
+  /** Why it wasn't published straight away, e.g. "safety topic". */
+  heldReason: text("held_reason"),
+  embedding: vector("embedding", { dimensions: 384 }),
+  reviewedAt: ts("reviewed_at"),
 });
+
+export type LearnedStatus = "published" | "held" | "removed";
 
 export const bookingRequests = pgTable("booking_requests", {
   id: bigserial("id", { mode: "number" }).primaryKey(),

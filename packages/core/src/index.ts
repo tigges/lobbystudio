@@ -13,6 +13,7 @@ export type { Bundle, Segment, TurnResult, ExecutorEvent } from "./runtime/types
 export { slugify } from "./retrieval/chunk.ts";
 export * from "./services/sweeper.ts";
 export * from "./services/review.ts";
+export * from "./services/learned.ts";
 export * from "./labels.ts";
 export * from "./flow-map.ts";
 export * from "./businesses.ts";
