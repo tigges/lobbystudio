@@ -41,16 +41,24 @@ export function staffFor(stylist: string | null, staff: DiaryStaff[]) {
   return staff.filter((s) => s.name.toLowerCase() === first);
 }
 
+export const DEMO_DIARY = "demo diary";
+
 /**
  * A made-up diary for demos without booking-system credentials: the business's hours and staff, with
  * roughly half the times already taken. The same question always gets the same times.
+ * `alreadyBooked` gives the slot ids booked before this process started, so a restart doesn't free them.
  */
-export function demoDiary(business: Business): BookingSystem {
+export function demoDiary(business: Business, alreadyBooked: () => Promise<Iterable<string>> = async () => []): BookingSystem {
   const diary = business.diary;
   if (!diary) throw new Error(`${business.id} has no diary`);
+  const isTaken = async () => {
+    const stored = new Set(await alreadyBooked());
+    return (id: string) => taken.has(id) || stored.has(id);
+  };
   return {
-    name: "demo diary",
+    name: DEMO_DIARY,
     async availability(q: SlotQuery): Promise<OfferedSlot[]> {
+      const booked = await isTaken();
       const minutes = serviceMinutes(q.service, diary.minutes);
       const people = staffFor(q.stylist, diary.staff);
       const days = wantedDays(q.preferredTime);
@@ -73,7 +81,7 @@ export function demoDiary(business: Business): BookingSystem {
         if ((perDay.get(day) ?? 0) >= MAX_PER_DAY) continue;
         const person = people.find((p) => {
           const id = `${p.id}@${start.toISOString()}`;
-          return !taken.has(id) && hash(`${business.id}:${id}:${minutes}`) % 100 >= 55;
+          return !booked(id) && hash(`${business.id}:${id}:${minutes}`) % 100 >= 55;
         });
         if (!person) continue;
         perDay.set(day, (perDay.get(day) ?? 0) + 1);
@@ -88,9 +96,9 @@ export function demoDiary(business: Business): BookingSystem {
       return out;
     },
     async book({ slot }) {
-      if (taken.has(slot.id)) throw new Error("that time has just been taken");
+      if ((await isTaken())(slot.id)) throw new Error("that time has just been taken");
       taken.add(slot.id);
-      return { system: "demo diary", ref: `DEMO-${hash(slot.id).toString(36).slice(0, 5).toUpperCase()}` };
+      return { system: DEMO_DIARY, ref: `DEMO-${hash(slot.id).toString(36).slice(0, 5).toUpperCase()}` };
     },
   };
 }
