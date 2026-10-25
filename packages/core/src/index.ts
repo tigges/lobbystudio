@@ -10,3 +10,5 @@ export { greeting } from "./runtime/templates.ts";
 export type { Bundle, Segment, TurnResult, ExecutorEvent } from "./runtime/types.ts";
 export { slugify } from "./retrieval/chunk.ts";
 export * from "./services/sweeper.ts";
+export * from "./services/review.ts";
+export * from "./labels.ts";

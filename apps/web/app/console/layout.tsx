@@ -8,9 +8,20 @@ export const dynamic = "force-dynamic";
 export const metadata = { title: "Console" };
 
 const NAV = [
-  { href: "/console/handovers", label: "Handovers" },
-  { href: "/console/conversations", label: "Conversations" },
-  { href: "/console/help", label: "Help" },
+  {
+    group: "Practice team",
+    links: [
+      { href: "/console/handovers", label: "Handovers" },
+      { href: "/console/help", label: "Help" },
+    ],
+  },
+  {
+    group: "Admin",
+    links: [
+      { href: "/console/insights", label: "Insights" },
+      { href: "/console/conversations", label: "Conversations" },
+    ],
+  },
 ];
 
 export default function ConsoleLayout({ children }: { children: React.ReactNode }) {
@@ -21,11 +32,21 @@ export default function ConsoleLayout({ children }: { children: React.ReactNode 
           <Link href="/console" className="font-semibold text-harbour-900">
             dental-bot <span className="font-normal text-slate-400">console</span>
           </Link>
-          <nav className="flex gap-1 text-sm">
-            {NAV.map((n) => (
-              <Link key={n.href} href={n.href} className="rounded-lg px-3 py-1.5 text-slate-600 hover:bg-slate-100">
-                {n.label}
-              </Link>
+          <nav className="flex items-center gap-4 text-sm">
+            {NAV.map((g) => (
+              <div
+                key={g.group}
+                className={`flex items-center gap-1 rounded-xl px-1.5 py-1 ${g.group === "Admin" ? "bg-violet-50 ring-1 ring-violet-100" : ""}`}
+              >
+                <span className={`px-1.5 text-[10px] font-semibold uppercase tracking-wider ${g.group === "Admin" ? "text-violet-500" : "text-slate-400"}`}>
+                  {g.group}
+                </span>
+                {g.links.map((n) => (
+                  <Link key={n.href} href={n.href} className="rounded-lg px-2.5 py-1 text-slate-600 hover:bg-white">
+                    {n.label}
+                  </Link>
+                ))}
+              </div>
             ))}
           </nav>
           <div className="ml-auto flex items-center gap-3">

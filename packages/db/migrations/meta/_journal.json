@@ -29,6 +29,13 @@
       "when": 1792913677308,
       "tag": "0003_handover_contact",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1792934246867,
+      "tag": "0004_turn_labels",
+      "breakpoints": true
     }
   ]
 }

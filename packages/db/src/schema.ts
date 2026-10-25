@@ -260,9 +260,27 @@ export const turns = pgTable(
     flowBefore: jsonb("flow_before").$type<FlowState | null>(),
     flowAfter: jsonb("flow_after").$type<FlowState | null>(),
     error: text("error"),
+    /** Commit of the app that served the turn; null for turns recorded before builds were stamped. */
+    build: text("build"),
     createdAt: ts("created_at").notNull().defaultNow(),
   },
   (t) => [uniqueIndex("turns_conversation_index").on(t.conversationId, t.index)],
+);
+
+/** Admin review of one turn: a fixed label plus an optional note. One label per turn; relabelling replaces it. */
+export const turnLabels = pgTable(
+  "turn_labels",
+  {
+    id: bigserial("id", { mode: "number" }).primaryKey(),
+    tenantId: text("tenant_id").notNull(),
+    conversationId: uuid("conversation_id").notNull(),
+    turnId: integer("turn_id").notNull(),
+    label: text("label").notNull(),
+    note: text("note"),
+    createdAt: ts("created_at").notNull().defaultNow(),
+    updatedAt: ts("updated_at").notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("turn_labels_turn").on(t.turnId), index("turn_labels_tenant_label").on(t.tenantId, t.label)],
 );
 
 export const piiVault = pgTable(

@@ -1,5 +1,6 @@
 import { loadConversation, runTurn, type TurnEvent } from "@dental-bot/core";
 import { CORS, fail, tenantId, isUuid, preflight, readJson } from "@/lib/api";
+import { buildInfo } from "@/lib/build";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -33,6 +34,7 @@ export async function POST(req: Request) {
           conversationId,
           text,
           action,
+          build: buildInfo().commit,
           emit: (e: TurnEvent) => {
             const { type, ...data } = e;
             send(type, data);

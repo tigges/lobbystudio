@@ -9,7 +9,7 @@ const FLOW = [
   { title: "Handover", body: "pain, clinical questions, complaints, or “talk to the practice”" },
   { title: "You reply", body: "from the Handovers queue, in the same chat" },
   { title: "Release", body: "hand the visitor back to the assistant" },
-  { title: "Review", body: "outcomes and the turn ledger in Conversations" },
+  { title: "Review (admin)", body: "Insights, labels and the turn ledger" },
 ];
 
 const STEPS = [
@@ -63,7 +63,7 @@ const STEPS = [
   },
   {
     id: "conversations",
-    title: "6. Review conversations and outcomes",
+    title: "6. Review conversations and outcomes (admin)",
     img: "06-conversations.webp",
     body: [
       "Conversations lists every chat with its outcome, so you can see how the assistant is doing. Click the first message to open a conversation.",
@@ -72,7 +72,7 @@ const STEPS = [
   },
   {
     id: "ledger",
-    title: "7. Look inside a conversation",
+    title: "7. Look inside a conversation (admin)",
     img: "07-turn-ledger.webp",
     body: [
       "The conversation inspector shows the chat on the left and the turn ledger on the right: for each visitor message, what the assistant decided to do, which page sections it found, which safety checks ran, and what it cost.",
@@ -114,6 +114,23 @@ export default function HelpPage() {
           assistant is doing. A typical shift is the loop below.
         </p>
       </header>
+
+      <section aria-label="Who uses what" className="grid gap-3 sm:grid-cols-2">
+        <div className="rounded-xl bg-white p-4 ring-1 ring-slate-200">
+          <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400">Practice team</p>
+          <p className="text-sm text-slate-700">
+            <strong>Handovers</strong>: chats waiting for you, booking requests to call back, and contact details. <strong>Help</strong>: this
+            page. That's all you need day to day.
+          </p>
+        </div>
+        <div className="rounded-xl bg-violet-50 p-4 ring-1 ring-violet-100">
+          <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-violet-500">Admin</p>
+          <p className="text-sm text-slate-700">
+            <strong>Insights</strong>: turns grouped by what happened, with labelling. <strong>Conversations</strong>: every chat, filterable,
+            with the turn ledger. For the platform owner, to review and improve the assistant.
+          </p>
+        </div>
+      </section>
 
       <section aria-label="How a chat flows">
         <ol className="grid gap-3 sm:grid-cols-3 lg:grid-cols-6">

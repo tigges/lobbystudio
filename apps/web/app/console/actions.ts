@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { releaseToBot, setHandoverContact, staffReply } from "@dental-bot/core";
+import { clearTurnLabel, releaseToBot, setHandoverContact, setTurnLabel, staffReply } from "@dental-bot/core";
 import { SITE_TENANT } from "@/lib/site";
 
 export async function replyAction(form: FormData) {
@@ -28,6 +28,16 @@ export async function contactAction(form: FormData) {
     phone: String(form.get("phone") ?? ""),
   });
   revalidatePath(`/console/handovers/${conversationId}`);
+}
+
+export async function labelTurnAction(form: FormData) {
+  const turnId = Number(form.get("turnId"));
+  const label = String(form.get("label") ?? "");
+  const path = String(form.get("path") ?? "/console/insights");
+  if (!Number.isInteger(turnId)) return;
+  if (form.get("clear") || !label) await clearTurnLabel({ tenantId: SITE_TENANT, turnId });
+  else await setTurnLabel({ tenantId: SITE_TENANT, turnId, label, note: String(form.get("note") ?? "") });
+  revalidatePath(path.split("?")[0]!);
 }
 
 export async function releaseAction(form: FormData) {

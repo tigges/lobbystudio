@@ -114,6 +114,8 @@ export async function runTurn(opts: {
   emit?: (e: TurnEvent) => void;
   now?: Date;
   mode?: LlmMode;
+  /** Commit of the app serving the turn, recorded so reviews can tell builds apart. */
+  build?: string | null;
 }): Promise<{ result: TurnResult; turnId: number }> {
   const db = getDb();
   const emit = opts.emit ?? (() => {});
@@ -209,6 +211,7 @@ export async function runTurn(opts: {
       flowBefore: flow,
       flowAfter: result.flow,
       error: result.trace.error,
+      build: opts.build ?? null,
       createdAt: now,
     })
     .returning({ id: turns.id });

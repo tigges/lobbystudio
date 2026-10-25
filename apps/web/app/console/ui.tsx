@@ -51,3 +51,13 @@ export function AutoRefresh({ everyMs = 5000 }: { everyMs?: number }) {
   }, [router, everyMs]);
   return null;
 }
+
+/** Marks a console page as admin-only, so the practice team knows they can skip it. */
+export function AdminNote({ children }: { children?: React.ReactNode }) {
+  return (
+    <p className="mb-4 inline-flex items-center gap-2 rounded-lg bg-violet-50 px-3 py-1.5 text-xs text-violet-800 ring-1 ring-violet-100">
+      <span className="font-semibold uppercase tracking-wider">Admin</span>
+      <span>{children ?? "For the platform owner. The practice team doesn't need this page."}</span>
+    </p>
+  );
+}
