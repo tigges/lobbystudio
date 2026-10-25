@@ -1,4 +1,4 @@
-import { PATCH_NOTE, SALON_BOOKING, stylistPhrase } from "../runtime/flows/salon-booking.ts";
+import { bookingWhat, PATCH_NOTE, SALON_BOOKING, stylistPhrase } from "../runtime/flows/salon-booking.ts";
 import { CLINICAL_OUTPUT, type PrecheckRule } from "../runtime/guardrails.ts";
 import type { Practice } from "../runtime/templates.ts";
 import type { Pack } from "./types.ts";
@@ -87,7 +87,7 @@ export const SALON_PACK: Pack = {
     noTimes: "I couldn't find a free time that matches online, so I'll pass your request to the team and they'll call you to find one.",
     slotInvalid: "Sorry, which of these times would you like? Or choose \"None of these suit me\" and the team will call you.",
     booked: (slots, b) =>
-      `You're booked in: ${slots.service} ${stylistPhrase(slots.stylist)}, ${slots.slot}.` +
+      `You're booked in: ${bookingWhat(slots)}.` +
       `${slots.patch_test === "needed" ? ` ${PATCH_NOTE}` : ""} To change it, call us on ${b.phone}. ` +
       `Is there anything else I can help with before your visit?`,
     failed: (slots) =>

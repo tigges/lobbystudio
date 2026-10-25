@@ -63,7 +63,13 @@ export function stylistPhrase(stylist: string | undefined) {
 }
 
 function serviceText(slots: Record<string, string>) {
-  return [slots.service, slots.length && `${slots.length} hair`].filter(Boolean).join(", ");
+  const service = slots.service ? slots.service.charAt(0).toUpperCase() + slots.service.slice(1) : "";
+  return [service, slots.length && `${slots.length} hair`].filter(Boolean).join(", ");
+}
+
+/** The booked time's label names the stylist, so the level is only spelled out for a call-back request. */
+export function bookingWhat(slots: Record<string, string>) {
+  return slots.slot_id ? `${serviceText(slots)}, ${slots.slot}` : `${serviceText(slots)} ${stylistPhrase(slots.stylist)}`;
 }
 
 export const PATCH_NOTE = "You'll need a patch test at least 48 hours before; it takes five minutes and you can just walk in.";
@@ -126,10 +132,10 @@ export const SALON_BOOKING: BookingDef = {
   },
   contextQuery: {},
   summary(slots) {
-    const when = slots.slot_id ? `on ${slots.slot}` : `best time ${timeSummary(slots)}`;
+    const when = slots.slot_id ? "" : `, best time ${timeSummary(slots)}`;
     const patch = slots.patch_test === "needed" ? ` ${PATCH_NOTE}` : "";
     return (
-      `Here's what I have: ${serviceText(slots)} ${stylistPhrase(slots.stylist)}, ${when}, for ${slots.name} on ${slots.phone}.${patch} ` +
+      `Here's what I have: ${bookingWhat(slots)}${when}, for ${slots.name} on ${slots.phone}.${patch} ` +
       `Shall I ${slots.slot_id ? "book this in" : "send this to the team"}?`
     );
   },

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { FlowState } from "@dental-bot/db/schema";
 import { flowRuns } from "../src/flow-map.ts";
+import { SALON_BOOKING } from "../src/runtime/flows/salon-booking.ts";
 
 const booking = (step: string): FlowState => ({
   name: "booking_request",
@@ -70,6 +71,27 @@ describe("flow map", () => {
     const [run] = flowRuns(ledger(null, handover("waiting")));
     expect(run!.steps.find((s) => s.key === "name")!.turns).toEqual([]);
     expect(run!.end).toMatchObject({ kind: "waiting", turn: 2 });
+  });
+
+  it("follows a salon booking with the salon's steps, and says when it went to the booking system", () => {
+    const at = (step: string, slots: Record<string, string> = {}): FlowState => ({ name: "booking_request", step, slots });
+    const [run] = flowRuns(
+      ledger(at("service"), at("length"), at("stylist"), at("patch_test"), at("preferred_time"), at("slot"), at("name"), at("phone"), at("confirm", { slot_id: "x" }), null),
+      false,
+      SALON_BOOKING,
+    );
+    expect(run!.steps.map((s) => s.title)).toEqual([
+      "Service",
+      "Hair length",
+      "Stylist",
+      "Patch test",
+      "When",
+      "Time",
+      "Name",
+      "Phone",
+      "Confirm",
+    ]);
+    expect(run!.end).toMatchObject({ kind: "sent", title: "Sent to the booking system" });
   });
 
   it("has no runs when the chat never entered a flow", () => {
