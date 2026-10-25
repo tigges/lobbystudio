@@ -174,6 +174,8 @@ export const conversations = pgTable(
     versionId: integer("version_id").notNull(),
     status: conversationStatusEnum("status").notNull().default("active"),
     flow: jsonb("flow").$type<FlowState | null>(),
+    /** What the visitor has told us, keyed like the booking steps, e.g. { service: "Balayage", stylist: "Senior stylist" }. */
+    profile: jsonb("profile").$type<Record<string, string>>().notNull().default({}),
     topic: text("topic"),
     answeredCount: integer("answered_count").notNull().default(0),
     fallbackCount: integer("fallback_count").notNull().default(0),

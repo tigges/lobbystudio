@@ -2,7 +2,8 @@ import type { Command } from "./commands.ts";
 import { packFor } from "../packs/index.ts";
 import { nextBookingStep } from "./flows/booking.ts";
 import { yesNo } from "./guardrails.ts";
-import type { ComposeResult, PlannerResult, ScoredChunk, TurnContext } from "./types.ts";
+import { withProfile } from "./profile.ts";
+import type { ComposeContext, ComposeResult, PlannerResult, ScoredChunk, TurnContext } from "./types.ts";
 
 /**
  * Deterministic stand-ins for the chat model. Used when no API key is configured, for
@@ -54,7 +55,7 @@ export async function offlinePlan(ctx: TurnContext): Promise<PlannerResult> {
     const first = def.firstValueFrom(text);
     if (first) commands.push({ cmd: "set_slot", slot: def.slots[0]!, value: first });
   } else {
-    for (const q of splitQuestions(text)) commands.push({ cmd: "answer_from_knowledge", query: q });
+    for (const q of splitQuestions(text)) commands.push({ cmd: "answer_from_knowledge", query: withProfile(q, ctx.profile ?? {}, def) });
   }
   return { commands, call: null };
 }
@@ -73,8 +74,9 @@ function terms(text: string): string[] {
 }
 
 /** Picks the lines of the top chunks that best overlap the query and cites them. */
-export function offlineCompose(query: string, chunks: ScoredChunk[]): ComposeResult {
+export function offlineCompose(query: string, chunks: ScoredChunk[], context?: ComposeContext): ComposeResult {
   const q = terms(query);
+  const p = terms(Object.values(context?.profile ?? {}).join(" ")).filter((t) => !q.includes(t));
   const scored: { line: string; idx: number; score: number }[] = [];
   const best = chunks[0]?.score ?? 0;
   chunks.forEach((c, i) => {
@@ -84,7 +86,9 @@ export function offlineCompose(query: string, chunks: ScoredChunk[]): ComposeRes
       if (clean.length < 8) continue;
       const lt = terms(clean);
       const overlap = q.filter((t) => lt.some((l) => l.startsWith(t.slice(0, 5)))).length;
-      scored.push({ line: clean, idx: i + 1, score: overlap - i * 0.1 });
+      // What the visitor told us earlier breaks ties, e.g. the senior stylist's price over the others.
+      const fits = Math.min(0.45, 0.15 * p.filter((t) => lt.some((l) => l.startsWith(t.slice(0, 5)))).length);
+      scored.push({ line: clean, idx: i + 1, score: overlap + (overlap > 0 ? fits : 0) - i * 0.1 });
     }
   });
   scored.sort((a, b) => b.score - a.score);

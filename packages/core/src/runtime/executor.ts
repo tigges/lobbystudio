@@ -28,9 +28,11 @@ import {
   yesNo,
 } from "./guardrails.ts";
 import { OPEN_NOW, openNowAnswer, parseHours } from "./hours.ts";
+import { updateProfile } from "./profile.ts";
 import * as T from "./templates.ts";
 import type {
   ExecutorDeps,
+  HistoryItem,
   ExecutorEvent,
   ScoredChunk,
   Segment,
@@ -43,6 +45,8 @@ type Emit = (event: ExecutorEvent) => void;
 
 /** Once the top chunk clears the threshold, nearby chunks are also given to compose as context. */
 const CONTEXT_MARGIN = 0.1;
+/** Earlier messages the reply writer sees, so a follow-up question reads as one. */
+const RECENT_FOR_COMPOSE = 4;
 /** Queries this short that compose cannot answer are treated as a topic, not a question. */
 const TOPIC_MAX_WORDS = 3;
 /** Practice-local time for "are you open now?" and for dating "tomorrow" in booking requests. */
@@ -182,6 +186,8 @@ export async function runExecutor(ctx: TurnContext, deps: ExecutorDeps, emit: Em
   const def = pack.booking;
   const bctx: BookingContext = { online: bundle.booking?.mode === "online" && Boolean(deps.booking && pack.online) };
   const out = new ReplyWriter(emit, now);
+  const visitorTexts = [...ctx.history.filter((h) => h.role === "visitor").map((h) => h.text), ...(ctx.visitorText?.trim() ? [ctx.visitorText.trim()] : [])];
+  const profile = updateProfile(def, ctx.profile ?? {}, visitorTexts, null);
 
   const result: TurnResult = {
     segments: out.segments,
@@ -196,6 +202,7 @@ export async function runExecutor(ctx: TurnContext, deps: ExecutorDeps, emit: Em
     fallbacks: 0,
     topic: null,
     affirmed: false,
+    profile,
     trace: {
       commands: [],
       rejected: [],
@@ -210,6 +217,7 @@ export async function runExecutor(ctx: TurnContext, deps: ExecutorDeps, emit: Em
   const trace = result.trace;
   const finish = () => {
     out.close();
+    result.profile = updateProfile(def, profile, [], result.flow);
     trace.firstTokenMs = out.firstOutputAt === null ? null : out.firstOutputAt - started;
     return result;
   };
@@ -376,7 +384,7 @@ export async function runExecutor(ctx: TurnContext, deps: ExecutorDeps, emit: Em
         await answer(c.query);
         break;
       case "start_flow":
-        flow = startBooking(def, def.prefill?.(knownTexts({ withOffer: offerPending() })));
+        flow = startBooking(def, { ...profile, ...def.prefill?.(knownTexts({ withOffer: offerPending() })) });
         startedLead = Object.keys(flow.slots).length ? (def.startedWith?.(flow.slots) ?? "") : "";
         flowTouched = true;
         break;
@@ -491,7 +499,7 @@ export async function runExecutor(ctx: TurnContext, deps: ExecutorDeps, emit: Em
 
   const answeredTotal = (ctx.answeredBefore ?? 0) + result.answered;
   if (!flow && result.act === "answered" && result.answered > 0) {
-    const followUp = pack.followUp?.({ headings: citedHeadings(), slots: def.prefill?.(knownTexts()) ?? {} }) ?? null;
+    const followUp = pack.followUp?.({ headings: citedHeadings(), slots: profile }) ?? null;
     if (followUp && mayFollowUp(followUp)) {
       trace.guardrails.push({ rule: "booking_offer", result: "hit", detail: "follow-up" });
       out.template("suggest", followUp, [], T.OFFER_OPTIONS);
@@ -554,6 +562,12 @@ export async function runExecutor(ctx: TurnContext, deps: ExecutorDeps, emit: Em
 
   function citedHeadings() {
     return [...new Set(out.segments.filter((s) => s.kind === "answer").flatMap((s) => s.sources.map((src) => src.heading)))];
+  }
+
+  /** The last few messages, ending with the visitor's current one. */
+  function recentMessages(): HistoryItem[] {
+    const said: HistoryItem[] = text ? [{ role: "visitor", text }] : [];
+    return [...ctx.history.filter((h) => h.role !== "system").slice(-RECENT_FOR_COMPOSE), ...said];
   }
 
   /** What the visitor has said in this chat, oldest first, plus the offer they're accepting. */
@@ -674,7 +688,7 @@ export async function runExecutor(ctx: TurnContext, deps: ExecutorDeps, emit: Em
     for (const r of trace.retrieved) {
       if (context.some((c) => c.chunkId === r.chunkId)) r.used = "context";
     }
-    const composed = deps.compose(query, context, bundle);
+    const composed = deps.compose(query, context, bundle, { recent: recentMessages(), profile });
     const splitter = new SentenceSplitter();
     let emitted = 0;
     let blocked = 0;
