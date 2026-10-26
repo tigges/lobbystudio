@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { businessById, conversationDetail, flowRuns, listConversations, packFor, REVIEW_STATES, reviewState } from "@dental-bot/core";
+import { businessById, conversationDetail, flowRuns, listConversations, packFor, profileLine, REVIEW_STATES, reviewState } from "@dental-bot/core";
 import { reviewedAction } from "../../actions";
 import { label, OUTCOME_STYLE, when } from "@/lib/format";
 import { currentTenant } from "@/lib/business";
@@ -84,6 +84,12 @@ export default async function ConversationPage({
           <div className="rounded-2xl bg-slate-100/70 p-4">
             <Transcript messages={messages} />
           </div>
+          {profileLine(c.profile, def) && (
+            <div className="rounded-xl bg-white p-3 text-sm ring-1 ring-slate-200">
+              <p className="mb-1 font-medium">What the visitor told us</p>
+              <p className="text-slate-600">{profileLine(c.profile, def)}</p>
+            </div>
+          )}
           {bookings.map((b) => (
             <div key={b.id} className="rounded-xl bg-white p-3 text-sm ring-1 ring-slate-200">
               <p className="mb-1 font-medium">Booking request</p>

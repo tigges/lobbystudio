@@ -40,7 +40,7 @@ const RESUME_WITHIN_MS = 24 * 60 * 60 * 1000;
 export function depsFor(mode: LlmMode, booking: BookingSystem | null = null): ExecutorDeps {
   return mode === "live"
     ? { plan: livePlan, retrieve: (q, b) => searchChunks(q, b), compose: liveCompose, booking }
-    : { plan: offlinePlan, retrieve: (q, b) => searchChunks(q, b), compose: (q, c) => offlineCompose(q, c), booking };
+    : { plan: offlinePlan, retrieve: (q, b) => searchChunks(q, b), compose: (q, c, _b, ctx) => offlineCompose(q, c, ctx), booking };
 }
 
 /** The business's booking system, given contact details in clear: the chat only ever holds them as tokens. */
@@ -212,6 +212,7 @@ export async function runTurn(opts: {
       bookingOffered: offered || booked || Boolean(conv.handedOverAt),
       bookingClosed: booked || Boolean(conv.handedOverAt),
       teamReplied: Boolean(conv.lastHumanAt && conv.handedOverAt && conv.lastHumanAt >= conv.handedOverAt),
+      profile: conv.profile,
     },
     { ...depsFor(mode, bookingFor(opts.tenantId, bundle, values)), now: () => Date.now() + clockOffset },
     (e) => emit(e.type === "delta" ? { ...e, text: detokenise(e.text, values) } : e),
@@ -305,6 +306,7 @@ export async function runTurn(opts: {
     .update(conversations)
     .set({
       flow: result.flow,
+      profile: result.profile,
       status: result.status,
       topic: conv.topic ?? result.topic,
       answeredCount: conv.answeredCount + result.answered,

@@ -91,6 +91,16 @@ export function namedDays(text: string): string | null {
 /** A stylist level named outright; a bare "stylist" is too common in questions to count. */
 const NAMED_LEVEL = /\b(?:senior|graduate|junior|trainee|creative director)\b/i;
 
+const HAIR_LENGTH =
+  /\b(?:short|shoulder[- ]length|medium[- ]length|long|very long|below[- ](?:the )?chest)(?= hair\b)|(?<=\bmy hair is (?:quite |very |really |pretty )?)(?:short|shoulder[- ]length|long|below (?:the )?chest)\b/i;
+const NEW_CLIENT = /\b(?:new client|first time (?:at|with|here)|never been (?:to you|before|here)|haven'?t been (?:to you|before|here))\b/i;
+const RETURNING_CLIENT = /\b(?:been (?:to you |here )?before|regular|existing client|usual stylist|last time I (?:came|was in))\b/i;
+
+/** Told rather than asked: "I had a patch test in May", not "Do I need a patch test?". */
+export function isStatement(text: string) {
+  return !text.includes("?") && !/^(?:do|does|did|is|are|can|could|will|would|should|how|what|when|where|which)\b/i.test(text.trim());
+}
+
 function salonPrefill(texts: string[]): Record<string, string> {
   const slots: Record<string, string> = {};
   for (const text of texts) {
@@ -102,6 +112,17 @@ function salonPrefill(texts: string[]): Record<string, string> {
     }
     const days = namedDays(text);
     if (days) slots.preferred_time = days;
+    const length = HAIR_LENGTH.exec(text);
+    if (length) {
+      const said = validateSalonSlot("length", length[0]);
+      if (said.ok) slots.length = said.value;
+    }
+    if (/\bpatch[- ]?test/i.test(text) && isStatement(text)) {
+      const said = validateSalonSlot("patch_test", text);
+      if (said.ok) slots.patch_test = said.value;
+    }
+    if (NEW_CLIENT.test(text)) slots.client = "new";
+    else if (RETURNING_CLIENT.test(text)) slots.client = "returning";
   }
   return slots;
 }

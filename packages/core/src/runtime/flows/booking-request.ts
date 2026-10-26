@@ -1,3 +1,4 @@
+import { isStatement, namedDays } from "./salon-booking.ts";
 import { type BookingDef, commonSlot, CONFIRM_OPTIONS, needsPartOfDay, type SlotResult, TIME_OF_DAY_OPTIONS, timeSummary } from "./booking.ts";
 
 export { timeSummary, withDates } from "./booking.ts";
@@ -65,6 +66,25 @@ export function careSummary(slots: Record<string, string>) {
   return slots.care === "not sure" ? "NHS or private to be decided" : slots.care === "NHS" ? "NHS" : "private";
 }
 
+/** "Are you taking new NHS patients?" says as much about the visitor as "I'm a new patient". */
+const NEW_PATIENT = /\b(?:new (?:nhs |private )?patients?|not (?:yet )?registered|never been (?:to you|before|here)|first (?:visit|appointment|time))\b/i;
+const EXISTING_PATIENT = /\b(?:existing patient|already (?:a patient|registered)|i'?m registered|been (?:to you |here )?before|my (?:usual )?dentist (?:there|at))\b/i;
+
+function dentalPrefill(texts: string[]): Record<string, string> {
+  const slots: Record<string, string> = {};
+  for (const text of texts) {
+    const reason = DENTAL_BOOKING.firstValueFrom(text);
+    if (reason) slots.reason = reason;
+    if (NEW_PATIENT.test(text)) slots.patient = "new";
+    else if (EXISTING_PATIENT.test(text)) slots.patient = "existing";
+    if (/\bnhs (?:patients?|treatment|appointment|check-?up)\b/i.test(text) || (/\bnhs\b/i.test(text) && isStatement(text))) slots.care = "NHS";
+    else if (/\b(?:private(?:ly)? (?:patients?|treatment|appointment)|go private|pay privately|harbour care plan)\b/i.test(text)) slots.care = "private";
+    const days = namedDays(text);
+    if (days) slots.preferred_time = days;
+  }
+  return slots;
+}
+
 export const DENTAL_BOOKING: BookingDef = {
   slots: BOOKING_SLOTS,
   titles: {
@@ -129,6 +149,8 @@ export const DENTAL_BOOKING: BookingDef = {
             : /time|day/i.test(text)
               ? "preferred_time"
               : "reason",
+  prefill: dentalPrefill,
+  startedWith: (slots) => (slots.reason ? `Of course, ${/^[aeiou]/i.test(slots.reason) ? "an" : "a"} ${slots.reason.toLowerCase()}.` : ""),
   firstValueFrom(text) {
     if (/hygien/i.test(text)) return "Hygienist appointment";
     if (/whiten/i.test(text)) return "Whitening consultation";
