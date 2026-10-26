@@ -1,6 +1,7 @@
 import { callTool, streamText } from "../llm/anthropic.ts";
 import { costUsd } from "../llm/pricing.ts";
 import { plannerToolSchema } from "./commands.ts";
+import { businessById } from "../businesses.ts";
 import { packFor } from "../packs/index.ts";
 import { nextBookingStep } from "./flows/booking.ts";
 import { profileLine } from "./profile.ts";
@@ -62,6 +63,7 @@ function plannerUserMessage(ctx: TurnContext): string {
   const pack = packFor(ctx.bundle.vertical);
   const history = transcript(ctx.history.slice(-12), pack.place);
   const known = profileLine(ctx.profile ?? {}, pack.booking);
+  const pageTitle = ctx.page ? businessById(ctx.bundle.tenantId)?.pages.find((p) => p.slug === ctx.page)?.title : null;
   let state = "No flow is active.";
   if (ctx.flow?.name === "booking_request") {
     const step =
@@ -73,7 +75,7 @@ function plannerUserMessage(ctx: TurnContext): string {
     state = `Active flow: booking_request. Waiting for: ${step}. Slots so far: ${JSON.stringify(slots)}.${times}`;
   }
   return (
-    `${history ? `Conversation so far:\n${history}\n\n` : ""}${known ? `What the visitor has told us: ${known}.\n` : ""}${state}\n` +
+    `${history ? `Conversation so far:\n${history}\n\n` : ""}${known ? `What the visitor has told us: ${known}.\n` : ""}${pageTitle ? `The visitor is on the "${pageTitle}" page.\n` : ""}${state}\n` +
     `Last assistant act: ${ctx.lastBotAct ?? "none"}. Now at the ${pack.place}: ${practiceNow()}.\n\n` +
     `Latest visitor message:\n${ctx.visitorText ?? ""}`
   );

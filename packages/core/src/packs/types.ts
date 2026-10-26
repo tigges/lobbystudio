@@ -18,7 +18,8 @@ export type Pack = {
   place: string;
   /** Widget wording. */
   labels: { assistant: string; talk: string; footer: string };
-  greeting(b: Practice): string;
+  /** The opening message; `page` is the website page the chat was opened on, e.g. "prices". */
+  greeting(b: Practice, page?: string | null): string;
   cannotHandle(b: Practice, reason: "out_of_scope" | "unsupported_request" | "abusive"): string;
   technicalProblem(b: Practice): string;
   waitingForTeam(b: Practice): string;

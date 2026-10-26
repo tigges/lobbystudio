@@ -51,6 +51,8 @@ const CHECK_NAMES: Record<string, string> = {
   topic_menu: "Offered topics to choose from",
   near_miss: "Asked “Do you mean …?” on a near match",
   synonym: "Searched again with the website's word",
+  partial_answer: "Said what it could cover instead of “I don't know”",
+  cost_cap: "Turn cost cap reached: answer written without the model",
   no_double_clarify: "Avoided asking “which one” twice",
   clarify_options: "Unsafe choice options removed",
   slot_validation: "Booking answer not accepted",

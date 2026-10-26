@@ -65,6 +65,8 @@ export type TurnContext = {
   teamReplied?: boolean;
   /** What the visitor told us earlier in this conversation, keyed like the booking steps. */
   profile?: Record<string, string>;
+  /** The website page the visitor is on, e.g. "prices"; "" for the home page. */
+  page?: string | null;
 };
 
 export type PlannerResult = { commands: unknown; call: ModelCall | null };
@@ -85,6 +87,8 @@ export type ExecutorDeps = {
   compose(query: string, chunks: ScoredChunk[], bundle: Bundle, context?: ComposeContext): ComposeResult;
   /** The business's booking system, when bookings go online. */
   booking?: BookingSystem | null;
+  /** Once a turn has spent this much on model calls, answers are written without the model. Unset means no cap. */
+  maxTurnCostUsd?: number | null;
   now?: () => number;
 };
 

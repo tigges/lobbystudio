@@ -2,7 +2,7 @@ import type { Command } from "./commands.ts";
 import { packFor } from "../packs/index.ts";
 import { nextBookingStep } from "./flows/booking.ts";
 import { yesNo } from "./guardrails.ts";
-import { withProfile } from "./profile.ts";
+import { REFERS_BACK, withProfile } from "./profile.ts";
 import type { ComposeContext, ComposeResult, PlannerResult, ScoredChunk, TurnContext } from "./types.ts";
 
 /**
@@ -27,6 +27,16 @@ function splitQuestions(text: string): string[] {
     .map((p) => p.trim())
     .filter((p) => p.length > 3);
   return parts.length ? parts.slice(0, 3) : [text.trim()];
+}
+
+/** One standalone question with nothing for the planner to decide: no booking, handover, follow-up or second question. */
+export function isSimpleQuestion(text: string): boolean {
+  return (
+    looksLikeQuestion(text) &&
+    splitQuestions(text).length === 1 &&
+    text.split(/\s+/).length <= 15 &&
+    ![BOOK, PERSON, COMPLAINT, RECORD, OFF_TOPIC, REFERS_BACK].some((p) => p.test(text))
+  );
 }
 
 export async function offlinePlan(ctx: TurnContext): Promise<PlannerResult> {

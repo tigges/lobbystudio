@@ -29,6 +29,7 @@ import {
   yesNo,
 } from "./guardrails.ts";
 import { OPEN_NOW, openNowAnswer, parseHours } from "./hours.ts";
+import { isSimpleQuestion, offlineCompose } from "./offline.ts";
 import { updateProfile } from "./profile.ts";
 import * as T from "./templates.ts";
 import type {
@@ -48,6 +49,8 @@ type Emit = (event: ExecutorEvent) => void;
 const CONTEXT_MARGIN = 0.1;
 /** Just under the threshold, the best match is offered as "Do you mean …?" rather than a don't-know. */
 const NEAR_MISS_MARGIN = 0.08;
+/** A simple question whose best match clears the threshold by this much is answered without the planner. */
+const CONFIDENT_MARGIN = 0.1;
 /** Earlier messages the reply writer sees, so a follow-up question reads as one. */
 const RECENT_FOR_COMPOSE = 4;
 /** Queries this short that compose cannot answer are treated as a topic, not a question. */
@@ -189,6 +192,8 @@ export async function runExecutor(ctx: TurnContext, deps: ExecutorDeps, emit: Em
   const def = pack.booking;
   const bctx: BookingContext = { online: bundle.booking?.mode === "online" && Boolean(deps.booking && pack.online) };
   const out = new ReplyWriter(emit, now);
+  /** Searches made this turn, so the planner check and the answer share one. */
+  const searched = new Map<string, Promise<ScoredChunk[]>>();
   const visitorTexts = [...ctx.history.filter((h) => h.role === "visitor").map((h) => h.text), ...(ctx.visitorText?.trim() ? [ctx.visitorText.trim()] : [])];
   const profile = updateProfile(def, ctx.profile ?? {}, visitorTexts, null);
 
@@ -338,6 +343,9 @@ export async function runExecutor(ctx: TurnContext, deps: ExecutorDeps, emit: Em
       timeNoteOnly = true;
       trace.plannerSkipped = "booking_time_note";
       out.template("flow", def.timeNote);
+    } else if (!ctx.flow && !pack.enquiry?.pattern.test(text) && isSimpleQuestion(text) && (await confidentMatch(text))) {
+      commands = [{ cmd: "answer_from_knowledge", query: text }];
+      trace.plannerSkipped = "confident_match";
     } else {
       try {
         const planned = await deps.plan(ctx);
@@ -614,7 +622,22 @@ export async function runExecutor(ctx: TurnContext, deps: ExecutorDeps, emit: Em
     return [...new Set(synonyms.map((s) => s.search))];
   }
 
-  async function retrieve(query: string): Promise<ScoredChunk[]> {
+  function retrieve(query: string): Promise<ScoredChunk[]> {
+    const key = query.toLowerCase().replace(/[^a-z0-9£ ]/g, "").trim();
+    let found = searched.get(key);
+    if (!found) {
+      found = search(query);
+      searched.set(key, found);
+    }
+    return found;
+  }
+
+  async function confidentMatch(query: string) {
+    const top = (await retrieve(query))[0];
+    return Boolean(top && top.score >= bundle.config.retrievalThreshold + CONFIDENT_MARGIN);
+  }
+
+  async function search(query: string): Promise<ScoredChunk[]> {
     const searches = synonymSearches(query);
     if (searches.length === 0) return deps.retrieve(query, bundle);
     trace.guardrails.push({ rule: "synonym", result: "hit", detail: `${query} → ${searches.join(" · ")}` });
@@ -635,8 +658,7 @@ export async function runExecutor(ctx: TurnContext, deps: ExecutorDeps, emit: Em
   }
 
   function askTeamPending() {
-    const lastBot = ctx.history.findLast((h) => h.role === "bot")?.text;
-    return lastBot === T.dontKnow(practice);
+    return T.isDontKnow(ctx.history.findLast((h) => h.role === "bot")?.text ?? "", practice);
   }
 
   /** Answers from the published opening hours and the practice clock; false when the hours can't be read. */
@@ -740,7 +762,7 @@ export async function runExecutor(ctx: TurnContext, deps: ExecutorDeps, emit: Em
         return;
       }
       result.fallbacks += 1;
-      out.template("fallback", T.dontKnow(practice), [], T.ASK_TEAM_OPTIONS);
+      out.template("fallback", result.answered > 0 ? T.dontKnowRest(practice) : T.dontKnow(practice), [], T.ASK_TEAM_OPTIONS);
       if (result.act === "answered") result.act = "fallback";
       return;
     }
@@ -749,7 +771,11 @@ export async function runExecutor(ctx: TurnContext, deps: ExecutorDeps, emit: Em
     for (const r of trace.retrieved) {
       if (context.some((c) => c.chunkId === r.chunkId)) r.used = "context";
     }
-    const composed = deps.compose(query, context, bundle, { recent: recentMessages(), profile, related: synonymSearches(query) });
+    const composeContext = { recent: recentMessages(), profile, related: synonymSearches(query) };
+    const spent = trace.modelCalls.reduce((s, c) => s + c.costUsd, 0);
+    const overBudget = deps.maxTurnCostUsd != null && spent >= deps.maxTurnCostUsd;
+    if (overBudget) trace.guardrails.push({ rule: "cost_cap", result: "hit", detail: `$${spent.toFixed(4)} spent of $${deps.maxTurnCostUsd}` });
+    const composed = overBudget ? offlineCompose(query, context, composeContext) : deps.compose(query, context, bundle, composeContext);
     const splitter = new SentenceSplitter();
     let emitted = 0;
     let blocked = 0;
@@ -828,6 +854,16 @@ export async function runExecutor(ctx: TurnContext, deps: ExecutorDeps, emit: Em
       result.act = "fallback";
     }
     if (noAnswer) trace.guardrails.push({ rule: "compose_no_answer", result: "hit", detail: query });
+    if (result.answered > 0) {
+      out.template("fallback", T.dontKnowRest(practice), [], T.ASK_TEAM_OPTIONS);
+      return;
+    }
+    // The section was right but didn't have the detail: say what it does cover rather than a bare "I don't know".
+    if (noAnswer && blocked === 0 && top.heading !== top.page && top.slug !== T.LEARNED_SLUG) {
+      trace.guardrails.push({ rule: "partial_answer", result: "hit", detail: `${query}: ${top.heading}` });
+      out.template("fallback", T.partial(top.heading, practice), [], [top.heading, T.ASK_TEAM_OPTIONS[0]!]);
+      return;
+    }
     out.template("fallback", T.dontKnow(practice), [], T.ASK_TEAM_OPTIONS);
   }
 }

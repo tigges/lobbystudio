@@ -219,6 +219,7 @@ class Widget {
         tenant: TENANT,
         visitorId: visitorId(),
         conversationId: localStorage.getItem(`${STORE}:conversation`),
+        page: location.pathname,
       });
     } catch {
       this.renderMessage({ role: "system", kind: "error", text: "The chat is unavailable right now. Please phone us.", sources: [], options: [], feedback: null, authorName: null });
@@ -369,7 +370,7 @@ class Widget {
       const res = await fetch(`${BASE}/api/chat`, {
         method: "POST",
         headers: { "content-type": "application/json", accept: "text/event-stream" },
-        body: JSON.stringify({ tenant: TENANT, conversationId: this.session.conversationId, ...input }),
+        body: JSON.stringify({ tenant: TENANT, conversationId: this.session.conversationId, page: location.pathname, ...input }),
       });
       if (!res.ok || !res.body) throw new Error(`${res.status}`);
       const reader = res.body.pipeThrough(new TextDecoderStream()).getReader();
