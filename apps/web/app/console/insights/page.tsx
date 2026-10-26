@@ -1,5 +1,17 @@
 import Link from "next/link";
-import { groupTurns, insights, labelTitle, recentEvalRuns, SLOW_TURN_MS, TURN_LABELS, type EvalRunSummary } from "@dental-bot/core";
+import {
+  groupTurns,
+  insights,
+  labelTitle,
+  recentEvalRuns,
+  recentLearned,
+  SLOW_TURN_MS,
+  TURN_LABELS,
+  unansweredGroups,
+  type EvalRunSummary,
+  type LearnedAnswer,
+} from "@dental-bot/core";
+import { learnedAction } from "../actions";
 import { label, OUTCOME_STYLE, when } from "@/lib/format";
 import { currentTenant } from "@/lib/business";
 import { ActionedForm, LabelChip, LabelForm } from "../labels";
@@ -37,6 +49,10 @@ const CHECK_NAMES: Record<string, string> = {
   clinical_output: "Clinical advice removed",
   clinical_precheck: "Clinical words: handed straight over",
   topic_menu: "Offered topics to choose from",
+  near_miss: "Asked “Do you mean …?” on a near match",
+  synonym: "Searched again with the website's word",
+  partial_answer: "Said what it could cover instead of “I don't know”",
+  cost_cap: "Turn cost cap reached: answer written without the model",
   no_double_clarify: "Avoided asking “which one” twice",
   clarify_options: "Unsafe choice options removed",
   slot_validation: "Booking answer not accepted",
@@ -169,12 +185,91 @@ function ChatQuality({ runs }: { runs: EvalRunSummary[] }) {
   );
 }
 
+const LEARNED_STYLE = {
+  published: "bg-emerald-50 text-emerald-800 ring-emerald-200",
+  held: "bg-amber-50 text-amber-900 ring-amber-200",
+  removed: "bg-slate-100 text-slate-500 ring-slate-200",
+} as const;
+
+const LEARNED_ACTIONS = {
+  published: [{ status: "removed", title: "Undo" }],
+  held: [{ status: "published", title: "Publish" }, { status: "removed", title: "Discard" }],
+  removed: [{ status: "published", title: "Restore" }],
+} as const;
+
+function RecentlyLearned({ answers }: { answers: LearnedAnswer[] }) {
+  return (
+    <section className="rounded-2xl bg-white p-4 ring-1 ring-slate-200">
+      <h2 className="font-semibold text-slate-900">Recently learned</h2>
+      <p className="mb-3 text-xs text-slate-500">
+        Team replies to handovers, given by the assistant when someone asks the same question. Safety topics and replies with personal details wait here until you publish them.
+      </p>
+      {answers.length === 0 && <p className="text-sm text-slate-400">Nothing learned yet. Reply to a handover with “Teach the assistant this answer” ticked.</p>}
+      <ul className="divide-y divide-slate-100">
+        {answers.map((a) => (
+          <li key={a.id} className="flex flex-wrap items-start gap-3 py-2 text-sm">
+            <div className="min-w-0 flex-1">
+              <p className="text-slate-900">{a.asked ?? <span className="text-slate-400">(no question found)</span>}</p>
+              <p className="line-clamp-2 text-slate-600">{a.answer}</p>
+              <p className="text-xs text-slate-400">
+                {a.author} · {when(a.createdAt)}
+                {a.status === "held" && a.heldReason ? ` · held: ${a.heldReason}` : ""} ·{" "}
+                <Link href={`/console/conversations/${a.conversationId}`} className="text-harbour-700 hover:underline">
+                  conversation
+                </Link>
+              </p>
+            </div>
+            <span className={`rounded-full px-2 py-0.5 text-xs ring-1 ${LEARNED_STYLE[a.status]}`}>{a.status}</span>
+            <span className="flex gap-1.5">
+              {LEARNED_ACTIONS[a.status].map((act) => (
+                <form key={act.status} action={learnedAction}>
+                  <input type="hidden" name="id" value={a.id} />
+                  <input type="hidden" name="status" value={act.status} />
+                  <button className="rounded-lg border border-slate-300 bg-white px-2 py-0.5 text-xs font-medium text-slate-700 hover:bg-slate-50">{act.title}</button>
+                </form>
+              ))}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+function Unanswered({ groups }: { groups: Awaited<ReturnType<typeof unansweredGroups>> }) {
+  return (
+    <section className="rounded-2xl bg-white p-4 ring-1 ring-slate-200">
+      <h2 className="font-semibold text-slate-900">Questions it couldn't answer this week</h2>
+      <p className="mb-3 text-xs text-slate-500">Grouped when visitors asked the same thing. The top ones are worth a line on your website.</p>
+      {groups.length === 0 && <p className="text-sm text-slate-400">None in the last 7 days.</p>}
+      <ul className="space-y-1">
+        {groups.slice(0, 8).map((g) => (
+          <li key={g.first.id}>
+            <Link
+              href={`/console/conversations/${g.first.conversationId}?turn=${g.first.index}#turn-${g.first.index}`}
+              className="flex items-baseline gap-3 rounded-lg px-2 py-1.5 text-sm hover:bg-slate-50"
+            >
+              <span className="w-8 text-right tabular-nums text-slate-900">{g.count}×</span>
+              <span className="min-w-0 flex-1 text-slate-700">{g.questions.join(" · ")}</span>
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 export default async function InsightsPage({ searchParams }: { searchParams: Promise<Params> }) {
   const params = await searchParams;
   const days = params.days ?? "30";
   const filter = { sinceDays: days === "all" ? null : Number(days), version: params.version ? Number(params.version) : null };
   const tenant = await currentTenant();
-  const [data, evalRuns] = await Promise.all([insights(tenant, filter), recentEvalRuns(tenant)]);
+  const [data, evalRuns, learned, unanswered] = await Promise.all([
+    insights(tenant, filter),
+    recentEvalRuns(tenant),
+    recentLearned(tenant),
+    unansweredGroups(tenant),
+  ]);
   const selected = params.group ?? null;
   const list = selected ? await groupTurns(tenant, selected, filter) : [];
   const { totals } = data;
@@ -236,6 +331,11 @@ export default async function InsightsPage({ searchParams }: { searchParams: Pro
       </div>
 
       <ChatQuality runs={evalRuns} />
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <RecentlyLearned answers={learned} />
+        <Unanswered groups={unanswered} />
+      </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Panel title="What the assistant did" hint="Each turn counted once per kind of reply it gave.">

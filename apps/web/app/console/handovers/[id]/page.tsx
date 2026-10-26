@@ -142,8 +142,10 @@ export default async function HandoverPage({ params }: { params: Promise<{ id: s
             <label className="flex items-start gap-2 text-sm text-slate-700">
               <input type="checkbox" name="saveAsLabel" defaultChecked className="mt-1" />
               <span>
-                Save as the correct answer
-                <span className="block text-xs text-slate-500">Used to teach the assistant. Only after you approve a proposal.</span>
+                Teach the assistant this answer
+                <span className="block text-xs text-slate-500">
+                  It answers the same question this way from now on. Safety topics and replies with personal details wait for you on Insights; you can undo any answer there.
+                </span>
               </span>
             </label>
             <button className="w-full rounded-lg bg-harbour-600 py-2 font-medium text-white hover:bg-harbour-700">Send reply</button>

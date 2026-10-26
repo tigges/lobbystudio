@@ -8,7 +8,7 @@ import {
   turns,
   type FlowState,
 } from "@dental-bot/db";
-import { llmMode, type LlmMode } from "../config.ts";
+import { llmMode, maxTurnCostUsd, type LlmMode } from "../config.ts";
 import { confirmedOutcome } from "../outcomes.ts";
 import { detokenise } from "../pii/detect.ts";
 import { tokeniseForConversation, vaultValues } from "../pii/vault.ts";
@@ -39,8 +39,8 @@ const RESUME_WITHIN_MS = 24 * 60 * 60 * 1000;
 
 export function depsFor(mode: LlmMode, booking: BookingSystem | null = null): ExecutorDeps {
   return mode === "live"
-    ? { plan: livePlan, retrieve: (q, b) => searchChunks(q, b), compose: liveCompose, booking }
-    : { plan: offlinePlan, retrieve: (q, b) => searchChunks(q, b), compose: (q, c) => offlineCompose(q, c), booking };
+    ? { plan: livePlan, retrieve: (q, b) => searchChunks(q, b), compose: liveCompose, booking, maxTurnCostUsd: maxTurnCostUsd() }
+    : { plan: offlinePlan, retrieve: (q, b) => searchChunks(q, b), compose: (q, c, _b, ctx) => offlineCompose(q, c, ctx), booking };
 }
 
 /** The business's booking system, given contact details in clear: the chat only ever holds them as tokens. */
@@ -66,6 +66,8 @@ export async function startSession(opts: {
   visitorId: string;
   conversationId?: string | null;
   isDemo?: boolean;
+  /** The website page the chat is opened on, e.g. "prices". */
+  page?: string | null;
   now?: Date;
 }): Promise<{
   conversationId: string;
@@ -109,6 +111,7 @@ export async function startSession(opts: {
       visitorId: opts.visitorId,
       versionId,
       isDemo: opts.isDemo ?? false,
+      page: opts.page ?? null,
       startedAt: now,
       lastActivityAt: now,
     })
@@ -118,7 +121,7 @@ export async function startSession(opts: {
     conversationId: conv!.id,
     role: "bot",
     kind: "greeting",
-    text: packFor(bundle.vertical).greeting(bundle.practice),
+    text: packFor(bundle.vertical).greeting(bundle.practice, opts.page),
     createdAt: now,
   });
   return {
@@ -143,6 +146,8 @@ export async function runTurn(opts: {
   mode?: LlmMode;
   /** Commit of the app serving the turn, recorded so reviews can tell builds apart. */
   build?: string | null;
+  /** The website page the visitor is on now, if the widget said. */
+  page?: string | null;
 }): Promise<{ result: TurnResult; turnId: number }> {
   const db = getDb();
   const emit = opts.emit ?? (() => {});
@@ -212,6 +217,8 @@ export async function runTurn(opts: {
       bookingOffered: offered || booked || Boolean(conv.handedOverAt),
       bookingClosed: booked || Boolean(conv.handedOverAt),
       teamReplied: Boolean(conv.lastHumanAt && conv.handedOverAt && conv.lastHumanAt >= conv.handedOverAt),
+      profile: conv.profile,
+      page: opts.page ?? conv.page,
     },
     { ...depsFor(mode, bookingFor(opts.tenantId, bundle, values)), now: () => Date.now() + clockOffset },
     (e) => emit(e.type === "delta" ? { ...e, text: detokenise(e.text, values) } : e),
@@ -305,6 +312,7 @@ export async function runTurn(opts: {
     .update(conversations)
     .set({
       flow: result.flow,
+      profile: result.profile,
       status: result.status,
       topic: conv.topic ?? result.topic,
       answeredCount: conv.answeredCount + result.answered,

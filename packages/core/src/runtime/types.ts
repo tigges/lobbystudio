@@ -63,18 +63,32 @@ export type TurnContext = {
   bookingClosed?: boolean;
   /** Someone from the team has replied since the latest handover. */
   teamReplied?: boolean;
+  /** What the visitor told us earlier in this conversation, keyed like the booking steps. */
+  profile?: Record<string, string>;
+  /** The website page the visitor is on, e.g. "prices"; "" for the home page. */
+  page?: string | null;
 };
 
 export type PlannerResult = { commands: unknown; call: ModelCall | null };
 
 export type ComposeResult = { stream: AsyncIterable<string>; done: Promise<ModelCall | null> };
 
+/** The conversation around the question, so the answer reads as part of it. Facts still come only from the extracts. */
+export type ComposeContext = {
+  recent: HistoryItem[];
+  profile: Record<string, string>;
+  /** The website's words for what the visitor asked, e.g. "Getting here" for "nearest tube". */
+  related?: string[];
+};
+
 export type ExecutorDeps = {
   plan(ctx: TurnContext): Promise<PlannerResult>;
   retrieve(query: string, bundle: Bundle): Promise<ScoredChunk[]>;
-  compose(query: string, chunks: ScoredChunk[], bundle: Bundle): ComposeResult;
+  compose(query: string, chunks: ScoredChunk[], bundle: Bundle, context?: ComposeContext): ComposeResult;
   /** The business's booking system, when bookings go online. */
   booking?: BookingSystem | null;
+  /** Once a turn has spent this much on model calls, answers are written without the model. Unset means no cap. */
+  maxTurnCostUsd?: number | null;
   now?: () => number;
 };
 
@@ -131,6 +145,8 @@ export type TurnResult = {
   fallbacks: number;
   topic: string | null;
   affirmed: boolean;
+  /** What the visitor has told us so far, including this turn. */
+  profile: Record<string, string>;
   trace: {
     commands: TraceCommand[];
     rejected: unknown[];

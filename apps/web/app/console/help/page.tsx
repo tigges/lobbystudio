@@ -40,7 +40,7 @@ const STEPS = [
     body: [
       "Click a handover to see the whole conversation and the contact details the assistant collected. Type your reply on the right and press Send reply. It appears in the visitor's chat window straight away, under your name.",
       "The Contact card shows the name and phone number the visitor gave. If they only typed them in the chat, it says “not yet confirmed”: use Confirm contact to save them, or Edit contact to correct them after a phone call.",
-      "Leave “Save as the correct answer” ticked when your reply would be the right answer for anyone asking the same thing. Saved answers are collected to improve the assistant; nothing changes in the chat until a proposed improvement is approved.",
+      "Leave “Teach the assistant this answer” ticked when your reply would be the right answer for anyone asking the same thing. The assistant then gives that answer to the same question, marked “Answered by our team”. Replies on safety topics, with personal details, or about one visitor's own visit wait on Insights under “Recently learned” until you publish them, and you can undo any learned answer there.",
       "Never give clinical advice in the chat. If someone is in pain, ask them to call the practice or, out of hours, NHS 111.",
     ],
   },
