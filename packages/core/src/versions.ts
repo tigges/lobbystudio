@@ -12,7 +12,7 @@ import {
   type Source,
 } from "@dental-bot/db";
 import { packFor } from "./packs/index.ts";
-import type { Bundle } from "./runtime/types.ts";
+import type { Bundle, Section } from "./runtime/types.ts";
 
 const bundleCache = new Map<number, Bundle>();
 
@@ -44,6 +44,27 @@ export async function loadBundle(versionId: number): Promise<Bundle> {
     chunkId: c.id,
   });
   const pick = (pattern: RegExp) => emergencyChunks.filter((c) => pattern.test(c.anchor)).map(toSource);
+  const sectionRows = await db
+    .select({ chunk: chunks, position: contentPages.position })
+    .from(chunks)
+    .innerJoin(
+      contentPages,
+      and(
+        eq(contentPages.tenantId, chunks.tenantId),
+        eq(contentPages.contentVersionId, chunks.contentVersionId),
+        eq(contentPages.slug, chunks.pageSlug),
+      ),
+    )
+    .where(and(eq(chunks.tenantId, v.tenantId), eq(chunks.contentVersionId, v.contentVersionId)))
+    .orderBy(contentPages.position, chunks.id);
+  const sections = new Map<string, Section>();
+  for (const { chunk: c } of sectionRows) {
+    if (c.anchor === "top") continue;
+    const key = `${c.pageSlug}#${c.anchor}`;
+    const known = sections.get(key);
+    if (known) known.text += `\n${c.text}`;
+    else sections.set(key, { chunkId: c.id, page: c.pageTitle, slug: c.pageSlug, heading: c.heading, anchor: c.anchor, text: c.text });
+  }
   const bundle: Bundle = {
     tenantId: v.tenantId,
     versionId: v.id,
@@ -61,6 +82,7 @@ export async function loadBundle(versionId: number): Promise<Bundle> {
       urgent: pick(pack.handoverSources.urgent),
       clinical: pick(pack.handoverSources.clinical),
     },
+    sections: [...sections.values()],
   };
   bundleCache.set(versionId, bundle);
   return bundle;

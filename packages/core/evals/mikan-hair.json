@@ -415,5 +415,87 @@
         }
       }
     ]
+  },
+  {
+    "name": "Prices pills",
+    "turns": [
+      {
+        "say": "Prices",
+        "expect": {
+          "options": [
+            "Cut & style",
+            "Colour",
+            "Highlights & balayage",
+            "More…"
+          ]
+        }
+      },
+      {
+        "say": "Colour",
+        "expect": {
+          "contains": [
+            "£"
+          ],
+          "kinds": [
+            "answer"
+          ],
+          "notKinds": [
+            "fallback"
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "name": "Services pills, without prices until asked",
+    "turns": [
+      {
+        "say": "Services"
+      },
+      {
+        "say": "Highlights & balayage",
+        "expect": {
+          "notContains": [
+            "£"
+          ],
+          "kinds": [
+            "answer"
+          ],
+          "options": [
+            "Highlights & balayage prices"
+          ]
+        }
+      },
+      {
+        "say": "Highlights & balayage prices",
+        "expect": {
+          "contains": [
+            "£"
+          ],
+          "notKinds": [
+            "fallback"
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "name": "Find us pill",
+    "turns": [
+      {
+        "say": "Find us",
+        "expect": {
+          "contains": [
+            "Turnham Green"
+          ],
+          "kinds": [
+            "answer"
+          ],
+          "notKinds": [
+            "fallback"
+          ]
+        }
+      }
+    ]
   }
 ]

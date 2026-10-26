@@ -3,18 +3,16 @@ import type { HandoverReason } from "./commands.ts";
 export type Practice = { name: string; phone: string };
 
 const DENTAL_PAGE_LINES: Record<string, string> = {
-  treatments: "Looking at treatments and prices? Ask me about any treatment, or I can ask the team to call you to book.",
-  "nhs-private-faq": "Questions about NHS or private care? I can tell you whether we're taking new patients and how the costs differ.",
+  treatments: "Looking at our treatments? Ask me what any of them involves.",
+  "nhs-private-faq": "Questions about NHS or private care? I can tell you whether we're taking new patients and how the two differ.",
   book: "I can pass a booking request to the team and they'll call you to find a time. Just tell me what you'd like.",
+  contact: "Planning your visit? Ask me about opening hours or getting here.",
+  emergencies: "Need urgent help? Tell me what's happened and I'll get you to the right person.",
 };
 
+/** Only ever about the page the visitor is on: no booking nudge, and no mention of pain unless they chose the emergencies page. */
 export function greeting(p: Practice, page?: string | null): string {
-  if (page === "emergencies") {
-    return `Hi, I'm the ${p.name} assistant. If you're in pain or need urgent help, tell me and I'll pass you straight to the team, or tell you who to call when we're closed.`;
-  }
-  const line =
-    (page ? DENTAL_PAGE_LINES[page] : null) ?? "I can help with opening hours, prices, NHS and private care, emergencies and booking.";
-  return `Hi, I'm the ${p.name} assistant. ${line} If you're in pain or worried about a symptom, I'll pass you straight to the team.`;
+  return `Hi, I'm the ${p.name} assistant. ${(page ? DENTAL_PAGE_LINES[page] : null) ?? "How can I help you today?"}`;
 }
 
 /** The page's slug from a path such as "/prices" or "/mikan-hair/faq/"; "" for the home page. */
@@ -85,8 +83,6 @@ export const CLARIFY_LEAD = "Just to check, which of these do you mean?";
 
 export const GREET_BACK = "Hello! What would you like to know?";
 
-export const GREET_OPTIONS = ["What are your opening hours?", "How much is a check-up?", "Do you see NHS patients?"];
-
 export function nearMiss(heading: string): string {
   return `Just to check, do you mean “${heading}”${heading.endsWith("?") ? "" : "?"}`;
 }
@@ -101,12 +97,16 @@ export const SOMETHING_ELSE = "Something else";
 export const LEARNED_SLUG = "learned";
 export const LEARNED_PAGE = "Answered by our team";
 
+/** Leads the section pills for a first-level topic, e.g. "Which of our services would you like to know about?". */
+export function servicesLead(label: string): string {
+  return `Which of our ${label.toLowerCase()} would you like to know about?`;
+}
+
+export const MORE_LEAD = "Here are some more. Which would you like to know about?";
+
 export const TOPIC_LEAD = "That covers a few things. Which would you like to know about?";
 
 export const ACKNOWLEDGE = "You're welcome. Is there anything else I can help with?";
-
-/** After an out-of-scope message, steer back to what the visitor most likely came for. */
-export const STEER_BACK_OPTIONS = ["Book an appointment", "What are your opening hours?", "How much is a check-up?"];
 
 export const BILLING_DETAILS =
   "Of course. What's it about? If you have an invoice number, add it so the team can look it up before they reply.";
@@ -117,8 +117,6 @@ export const URGENT_DETAILS =
 export const RED_FLAG_REMINDER = "If it's affecting your breathing, swallowing or eye, please call 999 or go to A&E now.";
 
 export const PRICE_LEAD = "Prices depend on the treatment. Which would you like to know about?";
-
-export const PRICE_OPTIONS = ["How much is a check-up?", "How much is the hygienist?", "How much is teeth whitening?", "What are the NHS charges?"];
 
 /** Offered at most once per conversation, and never after a handover or a booking. */
 export const BOOKING_OFFER = "If you're thinking of coming in, I can pass a booking request to the team and they'll call you to find a time.";

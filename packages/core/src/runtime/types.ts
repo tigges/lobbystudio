@@ -41,10 +41,15 @@ export type Bundle = {
   booking: BookingConfig;
   /** Pages the fixed handover templates are written from, shown as their sources. */
   handoverSources: { urgent: Source[]; clinical: Source[] };
+  /** Every section of the website in page order, which the pills are built from. */
+  sections?: Section[];
 };
 
-/** `kind` is the message kind, e.g. "suggest" for a booking offer. */
-export type HistoryItem = { role: "visitor" | "bot" | "staff" | "system"; text: string; kind?: string };
+/** One headed section of a website page. */
+export type Section = { chunkId: number; page: string; slug: string; heading: string; anchor: string; text: string };
+
+/** `kind` is the message kind, e.g. "suggest" for a booking offer; `options` are the pills it offered. */
+export type HistoryItem = { role: "visitor" | "bot" | "staff" | "system"; text: string; kind?: string; options?: string[] };
 
 export type TurnContext = {
   visitorText: string | null;
