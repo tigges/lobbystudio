@@ -75,12 +75,12 @@ function terms(text: string): string[] {
 
 /** Picks the lines of the top chunks that best overlap the query and cites them. */
 export function offlineCompose(query: string, chunks: ScoredChunk[], context?: ComposeContext): ComposeResult {
-  const q = terms(query);
+  const q = [...new Set(terms(`${query} ${context?.related?.join(" ") ?? ""}`))];
   const p = terms(Object.values(context?.profile ?? {}).join(" ")).filter((t) => !q.includes(t));
   const scored: { line: string; idx: number; score: number }[] = [];
   const best = chunks[0]?.score ?? 0;
   chunks.forEach((c, i) => {
-    if (c.score < best - 0.03) return;
+    if (c.score < best - 0.06) return;
     for (const line of c.text.split(/\n+|(?<=\.)\s+(?=[A-Z])/)) {
       const clean = line.replace(/^[-*]\s*/, "").trim();
       if (clean.length < 8) continue;
@@ -92,7 +92,11 @@ export function offlineCompose(query: string, chunks: ScoredChunk[], context?: C
     }
   });
   scored.sort((a, b) => b.score - a.score);
-  const picked = scored.filter((s) => s.score > 0).slice(0, 2);
+  let picked = scored.filter((s) => s.score > 0).slice(0, 2);
+  // The visitor's word isn't on the website, but the section it stands for was found: its first sentence answers.
+  if (picked.length === 0 && chunks[0] && context?.related?.includes(chunks[0].heading)) {
+    picked = [{ line: chunks[0].text.split(/\n+|(?<=\.)\s+(?=[A-Z])/)[0]!.trim(), idx: 1, score: 1 }];
+  }
   const text = picked.length
     ? picked.map((p) => `${p.line.replace(/[.]$/, "")} [${p.idx}].`).join(" ")
     : "NO_ANSWER";

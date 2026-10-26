@@ -383,5 +383,37 @@
         }
       }
     ]
+  },
+  {
+    "name": "Getting here by tube",
+    "turns": [
+      {
+        "say": "How do I get to you by tube?",
+        "expect": {
+          "contains": [
+            "Turnham Green"
+          ],
+          "notKinds": [
+            "fallback"
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "name": "Fringe trim",
+    "turns": [
+      {
+        "say": "Do you do fringe trims?",
+        "expect": {
+          "kinds": [
+            "answer"
+          ],
+          "notKinds": [
+            "fallback"
+          ]
+        }
+      }
+    ]
   }
 ]

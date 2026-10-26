@@ -1,4 +1,5 @@
 import type { BookingConfig } from "@dental-bot/db";
+import type { Synonym } from "./packs/synonyms.ts";
 import type { Vertical } from "./packs/types.ts";
 
 export type SeedPage = { slug: string; title: string; navLabel: string; file: string };
@@ -19,6 +20,8 @@ export type Business = {
   dir: string;
   pages: SeedPage[];
   retrievalThreshold: number;
+  /** This business's own words for things, on top of its pack's, e.g. a local landmark. */
+  synonyms?: Synonym[];
   diary?: { staff: DiaryStaff[]; hours: DiaryHours; minutes: Record<string, number> };
 };
 

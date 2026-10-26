@@ -136,5 +136,22 @@
         }
       }
     ]
+  },
+  {
+    "name": "Scale and polish",
+    "turns": [
+      {
+        "say": "Can I get a scale and polish?",
+        "expect": {
+          "kinds": [
+            "answer"
+          ],
+          "notKinds": [
+            "fallback"
+          ],
+          "judge": "Should answer from the hygienist section, e.g. the hygienist appointment and its price."
+        }
+      }
+    ]
   }
 ]

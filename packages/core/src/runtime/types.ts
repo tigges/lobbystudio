@@ -72,7 +72,12 @@ export type PlannerResult = { commands: unknown; call: ModelCall | null };
 export type ComposeResult = { stream: AsyncIterable<string>; done: Promise<ModelCall | null> };
 
 /** The conversation around the question, so the answer reads as part of it. Facts still come only from the extracts. */
-export type ComposeContext = { recent: HistoryItem[]; profile: Record<string, string> };
+export type ComposeContext = {
+  recent: HistoryItem[];
+  profile: Record<string, string>;
+  /** The website's words for what the visitor asked, e.g. "Getting here" for "nearest tube". */
+  related?: string[];
+};
 
 export type ExecutorDeps = {
   plan(ctx: TurnContext): Promise<PlannerResult>;

@@ -1,6 +1,7 @@
 import { DENTAL_BOOKING } from "../runtime/flows/booking-request.ts";
 import { CLINICAL_OUTPUT, DENTAL_PRECHECK } from "../runtime/guardrails.ts";
 import * as T from "../runtime/templates.ts";
+import { COMMON_SYNONYMS } from "./synonyms.ts";
 import type { Pack } from "./types.ts";
 
 export const DENTAL_PACK: Pack = {
@@ -29,5 +30,10 @@ export const DENTAL_PACK: Pack = {
   acknowledgeWithOffer: T.ACKNOWLEDGE_WITH_OFFER,
   booking: DENTAL_BOOKING,
   online: null,
+  synonyms: [
+    ...COMMON_SYNONYMS,
+    { words: /\b(?:scale and polish|clean(?:ing)?|descale|tartar|plaque)\b/i, search: "Check-ups and hygiene" },
+    { words: /\b(?:braces|straighten\w*|crooked)\b/i, search: "Cosmetic treatments" },
+  ],
   handoverSources: { slug: "emergencies", urgent: /^(call-999|urgent-dental-problems|when-we-are-closed)/, clinical: /^what-we-cannot-do/ },
 };
