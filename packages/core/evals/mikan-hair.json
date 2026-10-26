@@ -425,7 +425,6 @@
           "options": [
             "Cut & style",
             "Colour",
-            "Highlights & balayage",
             "More…"
           ]
         }
@@ -447,33 +446,30 @@
     ]
   },
   {
-    "name": "Services pills, without prices until asked",
+    "name": "Services pills with starting prices",
     "turns": [
       {
-        "say": "Services"
+        "say": "Services",
+        "expect": {
+          "options": [
+            "Cut & style",
+            "Colour",
+            "More…"
+          ]
+        }
       },
       {
-        "say": "Highlights & balayage",
+        "say": "Colour",
         "expect": {
-          "notContains": [
-            "£"
+          "contains": [
+            "from £68"
           ],
           "kinds": [
             "answer"
           ],
           "options": [
-            "Highlights & balayage prices"
-          ]
-        }
-      },
-      {
-        "say": "Highlights & balayage prices",
-        "expect": {
-          "contains": [
-            "£"
-          ],
-          "notKinds": [
-            "fallback"
+            "Book",
+            "Other services"
           ]
         }
       }

@@ -244,7 +244,6 @@
           "options": [
             "Check-ups & hygiene",
             "Fillings & root canal",
-            "Crowns, bridges & dentures",
             "More…"
           ]
         }
@@ -259,7 +258,8 @@
             "answer"
           ],
           "options": [
-            "Check-ups & hygiene prices"
+            "Check-ups & hygiene prices",
+            "Book"
           ]
         }
       },
@@ -296,9 +296,9 @@
         "say": "More…",
         "expect": {
           "options": [
+            "Crowns, bridges & dentures",
             "Extractions",
-            "Cosmetic treatments",
-            "Implants"
+            "More…"
           ]
         }
       }
@@ -324,10 +324,10 @@
     ]
   },
   {
-    "name": "Opening hours pill",
+    "name": "Hours pill, then Find us",
     "turns": [
       {
-        "say": "Opening hours",
+        "say": "Hours",
         "expect": {
           "contains": [
             "8am"
@@ -337,6 +337,37 @@
           ],
           "notKinds": [
             "fallback"
+          ],
+          "options": [
+            "Find us",
+            "Book"
+          ]
+        }
+      },
+      {
+        "say": "Find us",
+        "expect": {
+          "contains": [
+            "Canada Water"
+          ],
+          "options": [
+            "Hours",
+            "Book"
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "name": "Opening pills on the home page",
+    "turns": [
+      {
+        "say": "hello",
+        "expect": {
+          "options": [
+            "Services",
+            "Hours",
+            "Book"
           ]
         }
       }

@@ -34,16 +34,18 @@ import {
   careAnswer,
   isPriceList,
   itemFor,
+  MAX_PILLS,
+  nextAfter,
   opening,
   otherLabel,
   overview,
+  priceSummary,
   pricesLabel,
   readTap,
   sectionPills,
   startPills,
   type Tap,
 } from "./menu.ts";
-import type { MenuMode } from "../packs/types.ts";
 import { isSimpleQuestion, offlineCompose } from "./offline.ts";
 import { updateProfile } from "./profile.ts";
 import * as T from "./templates.ts";
@@ -123,6 +125,11 @@ class ReplyWriter {
     const seg = this.open && this.open.key === key ? this.open.segment : (this.close(), this.begin("answer", key));
     seg.sources = sources;
     this.write(seg, text);
+  }
+
+  /** Pills for the segment still being written, e.g. the next steps after a streamed answer. */
+  attach(options: string[]) {
+    if (this.open) this.open.segment.options = options;
   }
 
   template(kind: SegmentKind, text: string, sources: Source[] = [], options: string[] = []) {
@@ -284,7 +291,7 @@ export async function runExecutor(ctx: TurnContext, deps: ExecutorDeps, emit: Em
   let confirmedHeading: string | null = null;
   const lastBot = ctx.history.findLast((h) => h.role === "bot");
   const gate = pack.careGate;
-  const tap = !ctx.flow && text ? readTap(pack, bundle, text, lastBot, ctx.page) : null;
+  const tap = !ctx.flow && text ? readTap(pack, bundle, text, lastBot) : null;
   /** The reply carries its own pills, so no booking offer follows and clears them. */
   let menuPills = false;
 
@@ -292,7 +299,7 @@ export async function runExecutor(ctx: TurnContext, deps: ExecutorDeps, emit: Em
     commands = [{ cmd: "handover", reason: "visitor_request" }];
     handoverTrigger = "visitor_button";
     trace.plannerSkipped = "exit_button";
-  } else if (ctx.action === "book" || text.toLowerCase() === T.BOOK_OPTION.toLowerCase() || (offerPending() && yesNo(text) === "yes")) {
+  } else if (ctx.action === "book" || [T.BOOK_OPTION, T.BOOK_PILL].some((b) => b.toLowerCase() === text.toLowerCase()) || (offerPending() && yesNo(text) === "yes")) {
     rebook = ctx.flow?.name === "booking_request";
     commands = rebook ? [] : [{ cmd: "start_flow", flow: "booking_request" }];
     trace.plannerSkipped = ctx.action ? "exit_button" : "booking_offer";
@@ -697,49 +704,54 @@ export async function runExecutor(ctx: TurnContext, deps: ExecutorDeps, emit: Em
 
   async function serveTap(t: Tap) {
     switch (t.kind) {
-      case "start":
+      case "topic":
       case "other": {
         const item = t.item;
-        if ("heading" in item) return answerSection(item.heading, item.ask);
-        const lead = item.sections.mode === "prices" ? pack.price.lead : T.servicesLead(item.label);
-        if (item.sections.mode === "prices" && gate && !profile.care) return askCare();
-        return listSections(item.sections.page, item.sections.mode, 0, lead);
+        if ("heading" in item) return answerSection(item.heading, item.ask, nextAfter(pack, item.label));
+        return listSections(item.page, 0, T.servicesLead(item.label));
       }
       case "more":
-        return listSections(t.slug, t.mode, t.from, t.mode === "prices" ? pack.price.lead : T.MORE_LEAD);
+        return listSections(t.slug, t.from, t.mode === "prices" ? pack.price.lead : T.MORE_LEAD);
       case "prices":
         return priceFor(t.section.heading);
       case "section": {
         if (t.mode === "prices") return priceFor(t.section.heading);
         if (!isPriceList(t.section)) {
           const ask = t.section.heading.endsWith("?") ? t.section.heading : `What can you tell me about ${t.section.heading.toLowerCase()}?`;
-          return answerSection(t.section.heading, ask);
+          return answerSection(t.section.heading, ask, [T.BOOK_PILL]);
         }
         const item = itemFor(pack, t.section.slug);
-        const pills = [pricesLabel(t.section.heading), ...(item ? [otherLabel(item)] : [])];
-        out.template("answer", overview(t.section), [sourceOf({ ...t.section, score: 0, keywordScore: 0 })], pills);
-        result.answered += 1;
-        result.topic ??= `${t.section.slug}#${t.section.anchor}`;
-        menuPills = true;
+        serveMenuAnswer(t.section, overview(t.section), [pricesLabel(t.section.heading), T.BOOK_PILL, ...(item ? [otherLabel(item)] : [])]);
         return;
       }
     }
   }
 
-  /** A page's section pills, three at a time. */
-  function listSections(slug: string, mode: MenuMode, from: number, lead: string) {
+  /** A reply written from the section itself, with the next steps as its pills. */
+  function serveMenuAnswer(s: Section, text: string, pills: string[]) {
+    out.template("answer", text, [sourceOf({ ...s, score: 0, keywordScore: 0 })], pills.slice(0, MAX_PILLS));
+    result.answered += 1;
+    result.topic ??= `${s.slug}#${s.anchor}`;
+    menuPills = true;
+  }
+
+  /** A page's section pills: all of them when they fit in three, otherwise two and "More…". */
+  function listSections(slug: string, from: number, lead: string) {
     const pills = sectionPills(pack, bundle, slug, from);
     const first = bundle.sections?.find((s) => s.slug === slug);
     result.act = "clarify";
-    trace.guardrails.push({ rule: "menu", result: "hit", detail: `${slug} (${mode}) from ${from}: ${pills.join(" · ")}` });
+    trace.guardrails.push({ rule: "menu", result: "hit", detail: `${slug} from ${from}: ${pills.join(" · ")}` });
     out.template("clarify", lead, first ? [sourceOf({ ...first, score: 0, keywordScore: 0 })] : [], pills);
   }
 
   /** One section, answered for `ask`; its opening lines when the reply writer finds nothing to say. */
-  async function answerSection(heading: string, ask: string) {
+  async function answerSection(heading: string, ask: string, pills: string[] = []) {
     const before = result.answered;
-    await answer(ask, { quiet: true, only: heading });
-    if (result.answered > before) return;
+    await answer(ask, { quiet: true, only: heading, pills });
+    if (result.answered > before) {
+      if (pills.length) menuPills = true;
+      return;
+    }
     const s = sectionNamed(heading);
     if (!s) {
       result.fallbacks += 1;
@@ -747,21 +759,25 @@ export async function runExecutor(ctx: TurnContext, deps: ExecutorDeps, emit: Em
       out.template("fallback", T.dontKnow(practice), [], T.ASK_TEAM_OPTIONS);
       return;
     }
-    out.template("answer", opening(s), [sourceOf({ ...s, score: 0, keywordScore: 0 })]);
-    result.answered += 1;
-    result.topic ??= `${s.slug}#${s.anchor}`;
+    serveMenuAnswer(s, opening(s), pills);
+    if (!pills.length) menuPills = false;
   }
 
+  /** A section's prices: each service from its lowest price, once we know which price list applies. */
   async function priceFor(heading: string) {
     if (gate && !profile.care) return askCare();
-    await answerSection(heading, `How much is ${heading.toLowerCase()}?`);
+    const s = sectionNamed(heading);
+    if (gate && profile.care === "NHS") return answer(`How much is ${heading.toLowerCase()}?`);
+    if (!s || !isPriceList(s)) return answerSection(heading, `How much is ${heading.toLowerCase()}?`);
+    const item = itemFor(pack, s.slug);
+    serveMenuAnswer(s, priceSummary(s), [T.BOOK_PILL, ...(item ? [otherLabel(item)] : [])]);
   }
 
   /** "Prices?" with nothing named: NHS patients get the NHS charges, everyone else picks a section. */
   async function priceTopic() {
     if (gate && !profile.care) return askCare();
     if (gate && profile.care === "NHS") return answerSection(gate.nhsHeading, "What are the NHS charges?");
-    listSections(pack.price.page, "prices", 0, pack.price.lead);
+    listSections(pack.price.page, 0, pack.price.lead);
   }
 
   function askCare() {
@@ -784,9 +800,7 @@ export async function runExecutor(ctx: TurnContext, deps: ExecutorDeps, emit: Em
     const firstAsk = ctx.history.findLastIndex((h) => h.role === "bot" && h.text === g.question && (h.options ?? g.options).length === g.options.length);
     const original = ctx.history.slice(0, Math.max(firstAsk, 0)).findLast((h) => h.role === "visitor")?.text ?? "";
     const priced = bundle.sections?.find((s) => pricesLabel(s.heading).toLowerCase() === original.trim().toLowerCase());
-    const startItem = pack.menu.start.find((i) => i.label.toLowerCase() === original.trim().toLowerCase());
     if (priced) return priceFor(priced.heading);
-    if (startItem && "sections" in startItem) return listSections(startItem.sections.page, "prices", 0, pack.price.lead);
     if (!original || PRICE_TOPIC.test(original)) return priceTopic();
     await answer(original);
   }
@@ -858,20 +872,23 @@ export async function runExecutor(ctx: TurnContext, deps: ExecutorDeps, emit: Em
   }
 
   /** Once the visitor has said NHS or private, a price comes only from that kind of price list. */
-  async function answer(query: string, opts: { quiet?: boolean; only?: string } = {}) {
+  async function answer(query: string, opts: { quiet?: boolean; only?: string; pills?: string[] } = {}) {
     const care = profile.care;
     if (!gate || (care !== "NHS" && care !== "private") || !ASKS_PRICE.test(query) || NAMES_CARE.test(query)) return answerFrom(query, opts);
     if (care === "private") return answerFrom(query, { ...opts, exclude: gate.nhsHeading });
     const before = result.answered;
-    await answerFrom(`${query.replace(/[?.!]+$/, "")} on the NHS?`, { quiet: true, only: gate.nhsHeading });
-    if (result.answered === before) await answerFrom(query, { quiet: opts.quiet });
+    await answerFrom(`${query.replace(/[?.!]+$/, "")} on the NHS?`, { quiet: true, only: gate.nhsHeading, pills: opts.pills });
+    if (result.answered === before) await answerFrom(query, { quiet: opts.quiet, pills: opts.pills });
   }
 
   /**
    * `quiet` serves the answer only if one is found, for context inside a flow, where a fallback would interrupt it.
    * `only` answers from that one section; `exclude` leaves one out.
    */
-  async function answerFrom(query: string, { quiet = false, only, exclude }: { quiet?: boolean; only?: string; exclude?: string } = {}) {
+  async function answerFrom(
+    query: string,
+    { quiet = false, only, exclude, pills }: { quiet?: boolean; only?: string; exclude?: string; pills?: string[] } = {},
+  ) {
     const threshold = bundle.config.retrievalThreshold;
     const all = await retrieve(query);
     const found = only ? scoped(all, only, threshold, sectionNamed(only)) : exclude ? all.filter((c) => c.heading !== exclude) : all;
@@ -974,6 +991,7 @@ export async function runExecutor(ctx: TurnContext, deps: ExecutorDeps, emit: Em
     } catch (err) {
       trace.error = `compose: ${(err as Error).message}`;
     }
+    if (emitted > 0 && pills?.length) out.attach(pills.slice(0, MAX_PILLS));
     out.close();
 
     if (emitted > 0) {
@@ -1028,7 +1046,7 @@ function topicOptions(query: string, chunks: ScoredChunk[], threshold: number): 
     if (c.heading === c.page || /[\d£]/.test(c.heading) || headings.includes(c.heading)) continue;
     headings.push(c.heading);
   }
-  return headings.slice(0, 4);
+  return headings.slice(0, MAX_PILLS);
 }
 
 /** True when the question has no distinctive words, or at least one of them appears in the cited text. */

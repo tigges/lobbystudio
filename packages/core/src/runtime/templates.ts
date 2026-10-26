@@ -125,6 +125,9 @@ export const ACKNOWLEDGE_WITH_OFFER = "You're welcome. If you'd like to come in,
 
 export const BOOK_OPTION = "Book an appointment";
 
+/** Booking as a pill: offered when it's the next best step, and always on the opening. */
+export const BOOK_PILL = "Book";
+
 export const OFFER_OPTIONS = [BOOK_OPTION, "Not right now"];
 
 export const OFFER_DECLINED = "No problem. Just ask if anything else comes up.";

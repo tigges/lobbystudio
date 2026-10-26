@@ -34,11 +34,12 @@ export const DENTAL_PACK: Pack = {
   released: "The practice team has handed you back to the assistant.",
   price: { lead: T.PRICE_LEAD, page: "treatments" },
   menu: {
-    start: [
-      { label: "Services", sections: { page: "treatments", mode: "overview" } },
-      { label: "Opening hours", heading: "Opening hours", ask: "What are your opening hours?" },
+    topics: [
+      { label: "Services", page: "treatments" },
+      { label: "Hours", heading: "Opening hours", ask: "What are your opening hours?" },
       { label: "Find us", heading: "Getting here", ask: "How do I get to you?" },
     ],
+    start: ["Services", "Hours", T.BOOK_PILL],
     pages: { treatments: "overview" },
     quiet: ["book", "emergencies"],
     skip: /^(?:NHS charges|Paying|How to contact us)\b/i,
