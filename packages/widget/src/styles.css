@@ -289,13 +289,6 @@ button {
   cursor: default;
 }
 
-.exits {
-  display: flex;
-  gap: 8px;
-  padding: 10px 14px 0;
-  flex-wrap: wrap;
-}
-
 .composer {
   display: flex;
   gap: 8px;

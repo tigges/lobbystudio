@@ -9,15 +9,15 @@ export type Vertical = "dental" | "salon";
 /** How a page's section pills answer: what the section covers, or its prices. */
 export type MenuMode = "overview" | "prices";
 
-/** A first-level pill: either the sections of a page, or one section answered directly. */
-export type MenuItem =
-  | { label: string; sections: { page: string; mode: MenuMode } }
-  | { label: string; heading: string; ask: string };
+/** A topic pill: either the sections of a page, or one section answered directly. */
+export type MenuItem = { label: string; page: string } | { label: string; heading: string; ask: string };
 
 export type Menu = {
-  /** The pills a chat opens with on the home page, and offered again after "hello". */
-  start: MenuItem[];
-  /** Pages that open on their own sections, and how those pills answer; other content pages open on theirs as overviews. */
+  /** Topics a visitor can tap or type, e.g. "Services", "Hours", "Find us". */
+  topics: MenuItem[];
+  /** The pills a chat opens with on the home page, and offered again after "hello": topic labels or the Book pill. */
+  start: string[];
+  /** How a page's section pills answer; pages not listed say what the section covers. */
   pages: Record<string, MenuMode>;
   /** Pages that open with no pills, e.g. booking and emergencies. */
   quiet: string[];

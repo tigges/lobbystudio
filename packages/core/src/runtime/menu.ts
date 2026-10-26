@@ -1,12 +1,14 @@
 import type { MenuItem, MenuMode, Pack } from "../packs/types.ts";
+import { BOOK_PILL } from "./templates.ts";
 import type { Bundle, HistoryItem, Section } from "./types.ts";
 
 /**
  * Pills built from the website's own sections, so they follow the site as it changes: a few first-level
- * topics per kind of business, then each page's headings, three at a time.
+ * topics per kind of business, then each page's headings. Every pill is the next best step for what we
+ * know, and a reply never offers more than three, counting Book and "More…".
  */
 export const MORE = "More…";
-const PER_PAGE = 3;
+export const MAX_PILLS = 3;
 
 /** "Fillings and root canal treatment" → "Fillings & root canal"; questions are kept as they are. */
 export function pillLabel(heading: string): string {
@@ -20,7 +22,10 @@ export function pricesLabel(heading: string): string {
   return `${pillLabel(heading)} prices`;
 }
 
-export function otherLabel(item: MenuItem): string {
+export type PageTopic = Extract<MenuItem, { page: string }>;
+export type SectionTopic = Extract<MenuItem, { heading: string }>;
+
+export function otherLabel(item: PageTopic): string {
   return `Other ${item.label.toLowerCase()}`;
 }
 
@@ -32,10 +37,10 @@ export function menuSections(pack: Pack, bundle: Bundle, slug: string): Section[
   );
 }
 
-/** Up to three pills from `from`, then "More…" when there are others. */
+/** The rest of a list from `from`: all of it when it fits in three pills, otherwise two and "More…". */
 export function pillPage(labels: string[], from = 0): string[] {
-  const page = labels.slice(from, from + PER_PAGE);
-  return from + PER_PAGE < labels.length ? [...page, MORE] : page;
+  const rest = labels.slice(from);
+  return rest.length <= MAX_PILLS ? rest : [...rest.slice(0, MAX_PILLS - 1), MORE];
 }
 
 export function sectionPills(pack: Pack, bundle: Bundle, slug: string, from = 0): string[] {
@@ -43,7 +48,13 @@ export function sectionPills(pack: Pack, bundle: Bundle, slug: string, from = 0)
 }
 
 export function startPills(pack: Pack): string[] {
-  return pack.menu.start.map((i) => i.label);
+  return pack.menu.start.slice(0, MAX_PILLS);
+}
+
+/** After a section topic such as Hours: the other section topics, e.g. Find us, then Book. */
+export function nextAfter(pack: Pack, label: string): string[] {
+  const others = pack.menu.topics.filter((t): t is SectionTopic => "heading" in t && t.label !== label).map((t) => t.label);
+  return [...others.slice(0, MAX_PILLS - 1), BOOK_PILL];
 }
 
 /** The pills the chat opens with: the page's own sections, none on quiet pages, otherwise the first-level topics. */
@@ -93,6 +104,21 @@ function listOf(items: string[]): string {
   return items.length <= 1 ? (items[0] ?? "") : `${items.slice(0, -1).join(", ")} and ${items.at(-1)}`;
 }
 
+/** "Colour: root colour from £68, full head colour from £85 and toner or gloss from £35." Each service at its lowest price. */
+export function priceSummary(section: Section): string {
+  const items: string[] = [];
+  for (const raw of section.text.split("\n")) {
+    const m = /^([^:£]{3,}):(.*)$/.exec(raw.replace(/^[-*]\s*/, "").trim());
+    const prices = m?.[2]!.match(/£[\d,]+(?:\.\d\d)?/g);
+    if (!m || !prices) continue;
+    const lowest = prices.reduce((a, b) => (Number(b.slice(1).replace(/,/g, "")) < Number(a.slice(1).replace(/,/g, "")) ? b : a));
+    const from = prices.length > 1 || /\bfrom\b/i.test(m[2]!) ? "from " : "";
+    const name = m[1]!.replace(/\s*\([^)]*\)/g, "").trim();
+    items.push(`${name.charAt(0).toLowerCase()}${name.slice(1)} ${from}${lowest}`);
+  }
+  return `${section.heading}: ${listOf(items)}.`;
+}
+
 /** NHS, private or not sure, from a pill or a typed answer. */
 export function careAnswer(text: string): "NHS" | "private" | "not sure" | null {
   if (/\bnhs\b/i.test(text)) return "NHS";
@@ -105,40 +131,39 @@ export const ASKS_PRICE = /\b(?:how much|costs?|costing|prices?|priced|charges?|
 
 /** What a tap on a pill from the bot's latest message means; null when the text isn't one of its pills. */
 export type Tap =
-  | { kind: "start"; item: MenuItem }
+  | { kind: "topic"; item: MenuItem }
   | { kind: "section"; section: Section; mode: MenuMode }
   | { kind: "prices"; section: Section }
   | { kind: "more"; slug: string; from: number; mode: MenuMode }
-  | { kind: "other"; item: MenuItem & { sections: { page: string; mode: MenuMode } } };
+  | { kind: "other"; item: PageTopic };
 
-export function readTap(pack: Pack, bundle: Bundle, text: string, lastBot: HistoryItem | undefined, page: string | null | undefined): Tap | null {
+export function readTap(pack: Pack, bundle: Bundle, text: string, lastBot: HistoryItem | undefined): Tap | null {
   const t = text.trim().toLowerCase();
-  const start = pack.menu.start.find((i) => i.label.toLowerCase() === t);
-  if (start) return { kind: "start", item: start };
+  const topic = pack.menu.topics.find((i) => i.label.toLowerCase() === t);
+  if (topic) return { kind: "topic", item: topic };
   const offered = lastBot?.options ?? [];
   if (!offered.some((o) => o.toLowerCase() === t)) return null;
   const sections = bundle.sections ?? [];
-  const mode: MenuMode =
-    lastBot?.text === pack.price.lead || (lastBot?.kind === "greeting" && page && pack.menu.pages[page] === "prices") ? "prices" : "overview";
+  const modeOf = (slug: string): MenuMode => (lastBot?.text === pack.price.lead ? "prices" : (pack.menu.pages[slug] ?? "overview"));
 
   if (t === MORE.toLowerCase()) {
     const shown = offered.filter((o) => o !== MORE);
     for (const slug of new Set(sections.map((s) => s.slug))) {
       const labels = menuSections(pack, bundle, slug).map((s) => pillLabel(s.heading));
       const at = labels.indexOf(shown.at(-1) ?? "");
-      if (at >= 0 && shown.every((o) => labels.includes(o))) return { kind: "more", slug, from: at + 1, mode };
+      if (at >= 0 && shown.every((o) => labels.includes(o))) return { kind: "more", slug, from: at + 1, mode: modeOf(slug) };
     }
     return null;
   }
-  const other = pack.menu.start.find((i) => "sections" in i && otherLabel(i).toLowerCase() === t);
-  if (other && "sections" in other) return { kind: "other", item: other };
+  const other = pack.menu.topics.find((i): i is PageTopic => "page" in i && otherLabel(i).toLowerCase() === t);
+  if (other) return { kind: "other", item: other };
   const priced = sections.find((s) => pricesLabel(s.heading).toLowerCase() === t);
   if (priced) return { kind: "prices", section: priced };
   const section = sections.find((s) => !s.heading.endsWith("?") && pillLabel(s.heading).toLowerCase() === t);
-  return section ? { kind: "section", section, mode } : null;
+  return section ? { kind: "section", section, mode: modeOf(section.slug) } : null;
 }
 
-/** The first-level item whose pills list this page, so an overview can offer the others. */
-export function itemFor(pack: Pack, slug: string) {
-  return pack.menu.start.find((i): i is MenuItem & { sections: { page: string; mode: MenuMode } } => "sections" in i && i.sections.page === slug);
+/** The topic whose pills list this page, so an answer from it can offer the others. */
+export function itemFor(pack: Pack, slug: string): PageTopic | undefined {
+  return pack.menu.topics.find((i): i is PageTopic => "page" in i && i.page === slug);
 }

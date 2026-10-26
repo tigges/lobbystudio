@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { runExecutor } from "../src/runtime/executor.ts";
-import { MORE, openingPills, overview, pillLabel } from "../src/runtime/menu.ts";
+import { MORE, openingPills, overview, pillLabel, priceSummary } from "../src/runtime/menu.ts";
 import { DENTAL_PACK } from "../src/packs/dental.ts";
 import { SALON_PACK } from "../src/packs/salon.ts";
 import type { Bundle, ExecutorDeps, HistoryItem, ScoredChunk, Section } from "../src/runtime/types.ts";
@@ -69,9 +69,9 @@ describe("pill labels", () => {
 
 describe("opening pills", () => {
   it("opens on the first-level topics at home, the page's own sections elsewhere, and none on booking or emergencies", () => {
-    expect(openingPills(DENTAL_PACK, dental, "")).toEqual(["Services", "Opening hours", "Find us"]);
-    expect(openingPills(SALON_PACK, salon, null)).toEqual(["Services", "Prices", "Find us"]);
-    expect(openingPills(DENTAL_PACK, dental, "treatments")).toEqual(["Check-ups & hygiene", "Fillings & root canal", "Crowns, bridges & dentures", MORE]);
+    expect(openingPills(DENTAL_PACK, dental, "")).toEqual(["Services", "Hours", "Book"]);
+    expect(openingPills(SALON_PACK, salon, null)).toEqual(["Services", "Hours", "Book"]);
+    expect(openingPills(DENTAL_PACK, dental, "treatments")).toEqual(["Check-ups & hygiene", "Fillings & root canal", MORE]);
     expect(openingPills(DENTAL_PACK, dental, "nhs-private-faq")).toEqual(["Are you taking new NHS patients?", "What is the difference between NHS and private treatment?"]);
     expect(openingPills(DENTAL_PACK, dental, "book")).toEqual([]);
     expect(openingPills(DENTAL_PACK, dental, "emergencies")).toEqual([]);
@@ -84,15 +84,15 @@ describe("opening pills", () => {
 });
 
 describe("tapping pills", () => {
-  it("lists services three at a time, then the rest after More…", async () => {
+  it("lists services two at a time with More…, and all of them once three are left", async () => {
     const { deps, calls } = recording(() => "NO_ANSWER");
     const r = await runExecutor(ctx({ bundle: dental, visitorText: "Services" }), deps);
     expect(calls.plan).toBe(0);
     expect(r.segments[0]!.text).toBe("Which of our services would you like to know about?");
-    expect(r.segments[0]!.options).toEqual(["Check-ups & hygiene", "Fillings & root canal", "Crowns, bridges & dentures", MORE]);
+    expect(r.segments[0]!.options).toEqual(["Check-ups & hygiene", "Fillings & root canal", MORE]);
 
     const more = await runExecutor(ctx({ bundle: dental, visitorText: MORE, history: [bot(r.segments[0]!.text, r.segments[0]!.options)] }), deps);
-    expect(more.segments[0]!.options).toEqual(["Extractions", "Cosmetic treatments"]);
+    expect(more.segments[0]!.options).toEqual(["Crowns, bridges & dentures", "Extractions", "Cosmetic treatments"]);
   });
 
   it("says what a service covers without prices, then offers its prices", async () => {
@@ -101,7 +101,7 @@ describe("tapping pills", () => {
     const r = await runExecutor(ctx({ bundle: dental, visitorText: "Check-ups & hygiene", history }), deps);
     expect(r.segments[0]!.text).toBe("Check-ups and hygiene: new patient examination and hygienist appointment.");
     expect(r.segments[0]!.text).not.toMatch(/£/);
-    expect(r.segments[0]!.options).toEqual(["Check-ups & hygiene prices", "Other services"]);
+    expect(r.segments[0]!.options).toEqual(["Check-ups & hygiene prices", "Book", "Other services"]);
     expect(r.segments).toHaveLength(1);
   });
 
@@ -111,35 +111,41 @@ describe("tapping pills", () => {
     );
   });
 
-  it("answers opening hours and finding us from just that section", async () => {
+  it("answers finding us from just that section, then offers hours and Book", async () => {
     const { deps, used } = recording(() => "We are a four-minute walk from Canada Water station [1].");
     const r = await runExecutor(ctx({ bundle: dental, visitorText: "Find us" }), deps);
     expect(used).toEqual([["Getting here"]]);
-    expect(r.segments[0]!.text).toContain("Canada Water");
+    expect(r.segments.map((x) => [x.text, x.options])).toEqual([["We are a four-minute walk from Canada Water station.", ["Hours", "Book"]]]);
   });
 
   it("falls back to the section's own opening lines when the reply writer has nothing", async () => {
     const { deps } = recording(() => "NO_ANSWER");
-    const r = await runExecutor(ctx({ bundle: dental, visitorText: "Opening hours" }), deps);
+    const r = await runExecutor(ctx({ bundle: dental, visitorText: "Hours" }), deps);
     expect(r.segments[0]!.kind).toBe("answer");
     expect(r.segments[0]!.text).toBe("Monday: 8am to 6pm. Saturday: 9am to 1pm.");
+    expect(r.segments[0]!.options).toEqual(["Find us", "Book"]);
   });
 
-  it("goes straight to salon prices, where there is no NHS question", async () => {
-    const { deps, used } = recording(() => "Full head colour is from £85 [1].", salonSections.map((s) => asChunk(s)));
-    const r = await runExecutor(ctx({ bundle: salon, visitorText: "Prices" }), deps);
-    expect(r.segments[0]!.text).toBe(SALON_PACK.price.lead);
-    expect(r.segments[0]!.options).toEqual(["Cut & style", "Colour", "Highlights & balayage", MORE]);
-    const colour = await runExecutor(ctx({ bundle: salon, visitorText: "Colour", history: [bot(SALON_PACK.price.lead, r.segments[0]!.options)] }), deps);
-    expect(used).toEqual([["Colour"]]);
-    expect(colour.segments[0]!.text).toContain("£85");
+  it("shows salon services with their starting prices, then Book", async () => {
+    const { deps, calls } = recording(() => "NO_ANSWER", salonSections.map((s) => asChunk(s)));
+    const r = await runExecutor(ctx({ bundle: salon, visitorText: "Services" }), deps);
+    expect(r.segments[0]!.options).toEqual(["Cut & style", "Colour", MORE]);
+    const colour = await runExecutor(ctx({ bundle: salon, visitorText: "Colour", history: [bot(r.segments[0]!.text, r.segments[0]!.options)] }), deps);
+    expect(colour.segments.map((x) => [x.text, x.options])).toEqual([["Colour: root colour from £68 and full head colour from £85.", ["Book", "Other services"]]]);
+    expect(calls.compose).toEqual([]);
   });
 
-  it("answers in prices mode on the salon prices page, from the opening pills", async () => {
-    const { deps, used } = recording(() => "Root colour is from £68 [1].", salonSections.map((s) => asChunk(s)));
-    const greeting = bot(SALON_PACK.greeting(salon.practice, "prices"), ["Cut & style", "Colour"], "greeting");
-    await runExecutor(ctx({ bundle: salon, visitorText: "Colour", history: [greeting], page: "prices" }), deps);
-    expect(used).toEqual([["Colour"]]);
+  it("gives each service its lowest price", () => {
+    expect(priceSummary(salonSections[1]!)).toBe("Cut and style: cut and blow-dry from £45 and restyle from £55.");
+    expect(priceSummary(dentalSections.find((s) => s.heading === "Check-ups and hygiene")!)).toBe(
+      "Check-ups and hygiene: new patient examination £85 and hygienist appointment £75.",
+    );
+  });
+
+  it("treats Book as the booking button", async () => {
+    const { deps } = recording(() => "NO_ANSWER");
+    const r = await runExecutor(ctx({ bundle: dental, visitorText: "Book" }), deps);
+    expect(r.flow?.name).toBe("booking_request");
   });
 
   it("treats a pill's words typed without the pill as an ordinary question", async () => {

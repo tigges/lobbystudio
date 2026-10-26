@@ -33,8 +33,6 @@ const STORE = `dental-bot:${TENANT}`;
 const POLL_MS = 4000;
 const IDLE_POLL_MS = 15000;
 const RATEABLE = new Set(["answer", "fallback", "cannot_handle", "handover"]);
-/** Replies that mean the assistant couldn't help, after which the team button is shown. */
-const STRUGGLED = new Set(["fallback", "blocked", "cannot_handle"]);
 
 const ICON_CHAT =
   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/></svg>';
@@ -83,14 +81,9 @@ class Widget {
   private input!: HTMLTextAreaElement;
   private sendBtn!: HTMLButtonElement;
   private banner!: HTMLDivElement;
-  private exits!: HTMLDivElement;
-  private bookBtn!: HTMLButtonElement;
   private versionEl!: HTMLSpanElement;
   private titleEl!: HTMLElement;
   private subtitleEl!: HTMLElement;
-  private talkBtn!: HTMLButtonElement;
-  /** The assistant couldn't answer something, so talking to the team is offered from then on. */
-  private struggled = false;
   private footerEl!: HTMLElement;
   private launcher!: HTMLButtonElement;
   private stars!: HTMLDivElement;
@@ -140,15 +133,6 @@ class Widget {
     this.banner.hidden = true;
     this.log = el("div", { class: "log", "aria-live": "polite" }) as HTMLDivElement;
 
-    const exits = el("div", { class: "exits" });
-    const book = el("button", { class: "chip" }, "Book an appointment");
-    this.bookBtn = book as HTMLButtonElement;
-    this.exits = exits as HTMLDivElement;
-    book.addEventListener("click", () => void this.send({ action: "book" }));
-    const talk = el("button", { class: "chip" }, DEFAULT_LABELS.talk);
-    this.talkBtn = talk as HTMLButtonElement;
-    talk.addEventListener("click", () => void this.send({ action: "handover" }));
-    exits.append(book, talk);
 
     const composer = el("form", { class: "composer" });
     this.input = el("textarea", { rows: "1", placeholder: "Type your question…", "aria-label": "Message" });
@@ -181,7 +165,7 @@ class Widget {
     }
     footer.append(this.stars);
 
-    this.panel.append(header, this.banner, this.log, exits, composer, footer);
+    this.panel.append(header, this.banner, this.log, composer, footer);
     this.root.appendChild(this.panel);
   }
 
@@ -233,7 +217,6 @@ class Widget {
     this.titleEl.textContent = this.session.practice.name;
     const labels = this.labels();
     this.subtitleEl.textContent = labels.assistant;
-    this.talkBtn.textContent = labels.talk;
     this.footerEl.textContent = labels.footer;
     this.panel.setAttribute("aria-label", `Chat with ${this.session.practice.name}`);
     (this.root.querySelector(".avatar") as HTMLElement).textContent = this.session.practice.name
@@ -244,7 +227,6 @@ class Widget {
     this.versionEl.textContent = `v${this.session.versionNumber}`;
     this.versionEl.title = `Assistant v${this.session.versionNumber}${this.session.build ? ` · build ${this.session.build}` : ""}`;
     this.log.replaceChildren();
-    this.struggled = false;
     for (const m of this.session.messages) this.renderMessage(m);
     this.setStatus(this.session.status, this.session.booking);
   }
@@ -258,10 +240,6 @@ class Widget {
     this.session.status = status;
     if (booking !== undefined) this.session.booking = booking;
     const handed = status === "handed_over";
-    // The fixed buttons are only offered when they'd start something: not mid-booking, not while the team has the chat.
-    this.exits.hidden = handed;
-    this.bookBtn.hidden = Boolean(this.session.booking);
-    this.talkBtn.hidden = !this.struggled;
     this.banner.hidden = !handed;
     this.banner.textContent = handed ? `You're talking to the ${this.session.practice.name} team. They'll reply here.` : "";
     // Still poll, more slowly, while the assistant has the chat: the team can step back in at any time.
@@ -296,10 +274,6 @@ class Widget {
     row.append(bubble);
     this.log.append(row);
     if (m.role === "bot") this.decorate(row, m);
-    if (m.role === "bot" && STRUGGLED.has(m.kind) && !this.struggled) {
-      this.struggled = true;
-      this.talkBtn.hidden = false;
-    }
     this.scroll();
     return { row, bubble };
   }

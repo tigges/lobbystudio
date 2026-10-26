@@ -577,7 +577,7 @@ describe("next steps from labelled turns", () => {
     const { deps } = fakeDeps({ commands: [{ cmd: "cannot_handle", reason: "out_of_scope" }] });
     const r = await runExecutor(ctx({ visitorText: "what's the weather tomorrow" }), deps);
     expect(r.segments[0]!.text).not.toMatch(/I can only help/);
-    expect(r.segments[0]!.options).toEqual(["Services", "Opening hours", "Find us"]);
+    expect(r.segments[0]!.options).toEqual(["Services", "Hours", "Book"]);
   });
 
   it("offers to ask the team when it can't answer, and hands over on yes", async () => {

@@ -1,6 +1,6 @@
 import { bookingWhat, COLOUR_SERVICE, PATCH_NOTE, SALON_BOOKING, serviceWithStylist, stylistPhrase } from "../runtime/flows/salon-booking.ts";
 import { CLINICAL_OUTPUT, type PrecheckRule } from "../runtime/guardrails.ts";
-import type { Practice } from "../runtime/templates.ts";
+import { BOOK_PILL, type Practice } from "../runtime/templates.ts";
 import type { Pack } from "./types.ts";
 import { COMMON_SYNONYMS } from "./synonyms.ts";
 
@@ -89,11 +89,12 @@ export const SALON_PACK: Pack = {
   released: "The salon team has handed you back to the assistant.",
   price: { lead: "Prices depend on the service and the stylist. Which would you like to know about?", page: "prices" },
   menu: {
-    start: [
-      { label: "Services", sections: { page: "prices", mode: "overview" } },
-      { label: "Prices", sections: { page: "prices", mode: "prices" } },
+    topics: [
+      { label: "Services", page: "prices" },
+      { label: "Hours", heading: "Opening hours", ask: "What are your opening hours?" },
       { label: "Find us", heading: "Getting here", ask: "How do I get to you?" },
     ],
+    start: ["Services", "Hours", BOOK_PILL],
     pages: { prices: "prices" },
     quiet: ["book"],
     skip: /^(?:Paying|Cancellations|How to contact us)\b/i,
