@@ -1,0 +1,140 @@
+[
+  {
+    "name": "Hygienist price",
+    "turns": [
+      {
+        "say": "How much is a hygienist appointment?",
+        "expect": {
+          "contains": [
+            "£"
+          ],
+          "kinds": [
+            "answer"
+          ],
+          "notKinds": [
+            "fallback"
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "name": "New NHS patients",
+    "turns": [
+      {
+        "say": "Are you taking new NHS patients?",
+        "expect": {
+          "kinds": [
+            "answer"
+          ],
+          "notKinds": [
+            "fallback"
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "name": "Saturday opening",
+    "turns": [
+      {
+        "say": "Are you open on Saturdays?",
+        "expect": {
+          "kinds": [
+            "answer"
+          ],
+          "notKinds": [
+            "fallback"
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "name": "Nearest station",
+    "source": "open item: scores just under the threshold",
+    "turns": [
+      {
+        "say": "What is the nearest station?",
+        "expect": {
+          "contains": [
+            "Canada Water"
+          ],
+          "notKinds": [
+            "fallback"
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "name": "Swelling goes straight to the team",
+    "turns": [
+      {
+        "say": "my face is swelling and my tooth really hurts",
+        "expect": {
+          "handover": true,
+          "contains": [
+            "111"
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "name": "Booking a check-up as a call-back",
+    "turns": [
+      {
+        "action": "book",
+        "expect": {
+          "step": "reason"
+        }
+      },
+      {
+        "say": "Check-up",
+        "expect": {
+          "step": "patient"
+        }
+      },
+      {
+        "say": "I'm new",
+        "expect": {
+          "step": "care"
+        }
+      },
+      {
+        "say": "Private",
+        "expect": {
+          "step": "preferred_time"
+        }
+      },
+      {
+        "say": "Tuesday mornings",
+        "expect": {
+          "step": "name"
+        }
+      },
+      {
+        "say": "Mia Tanaka",
+        "expect": {
+          "step": "phone"
+        }
+      },
+      {
+        "say": "07700 900321",
+        "expect": {
+          "step": "confirm"
+        }
+      },
+      {
+        "say": "yes",
+        "expect": {
+          "step": null,
+          "contains": [
+            "call you"
+          ]
+        }
+      }
+    ]
+  }
+]
