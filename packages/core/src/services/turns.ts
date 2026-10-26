@@ -66,6 +66,8 @@ export async function startSession(opts: {
   visitorId: string;
   conversationId?: string | null;
   isDemo?: boolean;
+  /** The website page the chat is opened on, e.g. "prices". */
+  page?: string | null;
   now?: Date;
 }): Promise<{
   conversationId: string;
@@ -109,6 +111,7 @@ export async function startSession(opts: {
       visitorId: opts.visitorId,
       versionId,
       isDemo: opts.isDemo ?? false,
+      page: opts.page ?? null,
       startedAt: now,
       lastActivityAt: now,
     })
@@ -118,7 +121,7 @@ export async function startSession(opts: {
     conversationId: conv!.id,
     role: "bot",
     kind: "greeting",
-    text: packFor(bundle.vertical).greeting(bundle.practice),
+    text: packFor(bundle.vertical).greeting(bundle.practice, opts.page),
     createdAt: now,
   });
   return {
@@ -143,6 +146,8 @@ export async function runTurn(opts: {
   mode?: LlmMode;
   /** Commit of the app serving the turn, recorded so reviews can tell builds apart. */
   build?: string | null;
+  /** The website page the visitor is on now, if the widget said. */
+  page?: string | null;
 }): Promise<{ result: TurnResult; turnId: number }> {
   const db = getDb();
   const emit = opts.emit ?? (() => {});
@@ -213,6 +218,7 @@ export async function runTurn(opts: {
       bookingClosed: booked || Boolean(conv.handedOverAt),
       teamReplied: Boolean(conv.lastHumanAt && conv.handedOverAt && conv.lastHumanAt >= conv.handedOverAt),
       profile: conv.profile,
+      page: opts.page ?? conv.page,
     },
     { ...depsFor(mode, bookingFor(opts.tenantId, bundle, values)), now: () => Date.now() + clockOffset },
     (e) => emit(e.type === "delta" ? { ...e, text: detokenise(e.text, values) } : e),

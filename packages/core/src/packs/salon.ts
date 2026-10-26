@@ -4,6 +4,14 @@ import type { Practice } from "../runtime/templates.ts";
 import type { Pack } from "./types.ts";
 import { COMMON_SYNONYMS } from "./synonyms.ts";
 
+const SALON_PAGE_LINES: Record<string, string> = {
+  prices: "Looking at prices? Ask me about any service, and I can find you a free time too.",
+  "patch-tests": "Wondering about patch tests? I can tell you when you need one and help you book.",
+  offers: "Ask me about any of our offers, and I can find you a time that qualifies.",
+  book: "I can find you a free time now. Just tell me what you'd like.",
+  faq: "Ask me anything, from walk-ins to which stylist to book.",
+};
+
 /** Offers that carry on from the answer: the topic decides the wording, the visitor's own details fill it in. */
 function salonFollowUp({ headings, slots }: { headings: string[]; slots: Record<string, string> }): string | null {
   const on = (h: string) => headings.includes(h);
@@ -53,7 +61,7 @@ export const SALON_PACK: Pack = {
   kind: "a hair salon",
   place: "salon",
   labels: { assistant: "Salon assistant", talk: "Talk to the salon", footer: "Demo salon · fictional business" },
-  greeting: (b) => `Hi, I'm the ${b.name} assistant. How can I help you today?`,
+  greeting: (b, page) => `Hi, I'm the ${b.name} assistant. ${(page ? SALON_PAGE_LINES[page] : null) ?? "How can I help you today?"}`,
   cannotHandle(b, reason) {
     if (reason === "abusive") return "I can't help with that.";
     if (reason === "unsupported_request") return `I can't do that in the chat. The team can help on ${b.phone}.`;

@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { runExecutor } from "../src/runtime/executor.ts";
 import * as T from "../src/runtime/templates.ts";
+import { DENTAL_PACK } from "../src/packs/dental.ts";
+import { SALON_PACK } from "../src/packs/salon.ts";
 import { bundle, ctx, fakeDeps, hoursChunk, hygieneChunk } from "./fixtures.ts";
 
 describe("answering without the planner", () => {
@@ -52,5 +54,26 @@ describe("cost cap", () => {
     expect(calls.compose).toEqual([]);
     expect(r.segments[0]!.kind).toBe("answer");
     expect(r.trace.guardrails.some((g) => g.rule === "cost_cap")).toBe(true);
+  });
+});
+
+describe("page-aware openings", () => {
+  const salon = { name: "Mikan Hair Studio", phone: "020 7946 0588" };
+  it("reads the page from the widget's path", () => {
+    expect(T.pageSlug("/prices")).toBe("prices");
+    expect(T.pageSlug("/mikan-hair/patch-tests/?x=1")).toBe("patch-tests");
+    expect(T.pageSlug("/")).toBe("");
+    expect(T.pageSlug("/<script>")).toBeNull();
+    expect(T.pageSlug(42)).toBeNull();
+  });
+  it("opens with a line for the page, and the usual greeting elsewhere", () => {
+    expect(SALON_PACK.greeting(salon, "prices")).toBe(
+      "Hi, I'm the Mikan Hair Studio assistant. Looking at prices? Ask me about any service, and I can find you a free time too.",
+    );
+    expect(SALON_PACK.greeting(salon, "")).toBe("Hi, I'm the Mikan Hair Studio assistant. How can I help you today?");
+    expect(DENTAL_PACK.greeting(bundle.practice, "")).toBe(DENTAL_PACK.greeting(bundle.practice, null));
+    expect(DENTAL_PACK.greeting(bundle.practice, "")).toContain("I can help with opening hours");
+    expect(DENTAL_PACK.greeting(bundle.practice, "treatments")).toContain("Looking at treatments and prices?");
+    expect(DENTAL_PACK.greeting(bundle.practice, "treatments")).toContain("I'll pass you straight to the team.");
   });
 });

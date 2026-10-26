@@ -1,4 +1,4 @@
-import { loadConversation, runTurn, type TurnEvent } from "@dental-bot/core";
+import { loadConversation, pageSlug, runTurn, type TurnEvent } from "@dental-bot/core";
 import { CORS, fail, tenantId, isUuid, preflight, readJson } from "@/lib/api";
 import { buildInfo } from "@/lib/build";
 
@@ -34,6 +34,7 @@ export async function POST(req: Request) {
           conversationId,
           text,
           action,
+          page: pageSlug(body.page),
           build: buildInfo().commit,
           emit: (e: TurnEvent) => {
             const { type, ...data } = e;
