@@ -53,7 +53,9 @@ export const hoursChunk: ScoredChunk = {
 };
 
 export function ctx(overrides: Partial<TurnContext> = {}): TurnContext {
-  return { visitorText: "hello", action: null, flow: null, status: "active", history: [], bundle, ...overrides };
+  // Dental prices wait for NHS or private; most tests are about something else, so the visitor has said private.
+  const profile = (overrides.bundle ?? bundle).vertical === "dental" ? { care: "private" } : undefined;
+  return { visitorText: "hello", action: null, flow: null, status: "active", history: [], bundle, profile, ...overrides };
 }
 
 function composeOf(text: string): ComposeResult {

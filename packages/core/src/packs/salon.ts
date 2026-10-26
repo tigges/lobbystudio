@@ -5,11 +5,12 @@ import type { Pack } from "./types.ts";
 import { COMMON_SYNONYMS } from "./synonyms.ts";
 
 const SALON_PAGE_LINES: Record<string, string> = {
-  prices: "Looking at prices? Ask me about any service, and I can find you a free time too.",
-  "patch-tests": "Wondering about patch tests? I can tell you when you need one and help you book.",
-  offers: "Ask me about any of our offers, and I can find you a time that qualifies.",
+  prices: "Looking at prices? Ask me about any service.",
+  "patch-tests": "Wondering about patch tests? I can tell you when you need one.",
+  offers: "Ask me about any of our offers.",
   book: "I can find you a free time now. Just tell me what you'd like.",
   faq: "Ask me anything, from walk-ins to which stylist to book.",
+  contact: "Planning your visit? Ask me about opening hours or getting here.",
 };
 
 /** Offers that carry on from the answer: the topic decides the wording, the visitor's own details fill it in. */
@@ -86,12 +87,16 @@ export const SALON_PACK: Pack = {
     return `I've passed this to the salon team. Someone will reply here during opening hours, or you can call us on ${b.phone}.`;
   },
   released: "The salon team has handed you back to the assistant.",
-  greetOptions: ["How much is a cut and blow-dry?", "Do I need a patch test?", "When are you open?"],
-  steerBackOptions: ["Book an appointment", "When are you open?", "How much is a cut and blow-dry?"],
-  price: {
-    lead: "Prices depend on the service and the stylist. Which would you like to know about?",
-    options: ["How much is a cut and blow-dry?", "How much is a full head colour?", "How much is balayage?", "How much is a smoothing treatment?"],
-    query: "services and prices",
+  price: { lead: "Prices depend on the service and the stylist. Which would you like to know about?", page: "prices" },
+  menu: {
+    start: [
+      { label: "Services", sections: { page: "prices", mode: "overview" } },
+      { label: "Prices", sections: { page: "prices", mode: "prices" } },
+      { label: "Find us", heading: "Getting here", ask: "How do I get to you?" },
+    ],
+    pages: { prices: "prices" },
+    quiet: ["book"],
+    skip: /^(?:Paying|Cancellations|How to contact us)\b/i,
   },
   precheck: SALON_PRECHECK,
   unsafeOutput: SALON_UNSAFE,

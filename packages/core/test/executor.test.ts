@@ -201,7 +201,7 @@ describe("booking_request flow", () => {
     ];
     for (const [text, action, commands, prompt] of steps) {
       const { deps } = fakeDeps({ commands });
-      const r = await runExecutor(ctx({ visitorText: text, action, flow }), deps);
+      const r = await runExecutor(ctx({ visitorText: text, action, flow, profile: {} }), deps);
       expect(r.segments.at(-1)!.text).toMatch(prompt);
       flow = r.flow;
     }
@@ -577,7 +577,7 @@ describe("next steps from labelled turns", () => {
     const { deps } = fakeDeps({ commands: [{ cmd: "cannot_handle", reason: "out_of_scope" }] });
     const r = await runExecutor(ctx({ visitorText: "what's the weather tomorrow" }), deps);
     expect(r.segments[0]!.text).not.toMatch(/I can only help/);
-    expect(r.segments[0]!.options).toEqual(T.STEER_BACK_OPTIONS);
+    expect(r.segments[0]!.options).toEqual(["Services", "Opening hours", "Find us"]);
   });
 
   it("offers to ask the team when it can't answer, and hands over on yes", async () => {
@@ -616,12 +616,12 @@ describe("next steps from labelled turns", () => {
     expect(sunday.segments[0]!.text).toBe("We're closed right now. We open again tomorrow at 8am.");
   });
 
-  it("offers a short price menu for a bare 'prices'", async () => {
+  it("asks NHS or private before any price", async () => {
     const { deps, calls } = fakeDeps({ chunks: [hygieneChunk] });
-    const r = await runExecutor(ctx({ visitorText: "prices" }), deps);
+    const r = await runExecutor(ctx({ visitorText: "prices", profile: {} }), deps);
     expect(calls.plan).toBe(0);
-    expect(r.segments[0]!.options).toEqual(T.PRICE_OPTIONS);
-    expect(r.segments[0]!.sources[0]!.slug).toBe("treatments");
+    expect(r.segments[0]!.text).toBe("Are you an NHS or private patient?");
+    expect(r.segments[0]!.options).toEqual(["NHS", "Private", "Not sure"]);
   });
 
   it("explains the NHS position to a new NHS patient and asks which route", async () => {

@@ -18,6 +18,7 @@ import { bookingSystemFor } from "../booking/index.ts";
 import type { BookingSystem } from "../booking/types.ts";
 import { packFor } from "../packs/index.ts";
 import { nextBookingStep } from "../runtime/flows/booking.ts";
+import { openingPills } from "../runtime/menu.ts";
 import { liveCompose, livePlan } from "../runtime/live.ts";
 import { offlineCompose, offlinePlan } from "../runtime/offline.ts";
 import type { Bundle, ExecutorDeps, ExecutorEvent, HistoryItem, TurnResult } from "../runtime/types.ts";
@@ -122,6 +123,7 @@ export async function startSession(opts: {
     role: "bot",
     kind: "greeting",
     text: packFor(bundle.vertical).greeting(bundle.practice, opts.page),
+    options: openingPills(packFor(bundle.vertical), bundle, opts.page),
     createdAt: now,
   });
   return {
@@ -171,7 +173,7 @@ export async function runTurn(opts: {
     : null;
 
   const historyRows = await db
-    .select({ role: messages.role, text: messages.text, kind: messages.kind })
+    .select({ role: messages.role, text: messages.text, kind: messages.kind, options: messages.options })
     .from(messages)
     .where(and(eq(messages.tenantId, opts.tenantId), eq(messages.conversationId, conv.id)))
     .orderBy(desc(messages.id))

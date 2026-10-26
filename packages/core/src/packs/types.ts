@@ -6,6 +6,35 @@ import type { Synonym } from "./synonyms.ts";
 
 export type Vertical = "dental" | "salon";
 
+/** How a page's section pills answer: what the section covers, or its prices. */
+export type MenuMode = "overview" | "prices";
+
+/** A first-level pill: either the sections of a page, or one section answered directly. */
+export type MenuItem =
+  | { label: string; sections: { page: string; mode: MenuMode } }
+  | { label: string; heading: string; ask: string };
+
+export type Menu = {
+  /** The pills a chat opens with on the home page, and offered again after "hello". */
+  start: MenuItem[];
+  /** Pages that open on their own sections, and how those pills answer; other content pages open on theirs as overviews. */
+  pages: Record<string, MenuMode>;
+  /** Pages that open with no pills, e.g. booking and emergencies. */
+  quiet: string[];
+  /** Sections never offered as pills: payment, cancellations and the like. */
+  skip: RegExp;
+};
+
+/** Asked before any price, when the answer depends on it, e.g. NHS or private. */
+export type CareGate = {
+  question: string;
+  options: string[];
+  /** The section prices come from for the first option, e.g. "NHS charges". */
+  nhsHeading: string;
+  /** The section that explains the difference, answered for "Not sure". */
+  explainHeading: string;
+};
+
 /**
  * Everything that makes the assistant right for one kind of business: its booking steps, the
  * safety rules that hand over before the planner runs, and its wording. The engine is shared.
@@ -26,9 +55,10 @@ export type Pack = {
   handoverMessage(b: Practice, reason: HandoverReason): string;
   /** Sent when the team hands the chat back to the assistant. */
   released: string;
-  greetOptions: string[];
-  steerBackOptions: string[];
-  price: { lead: string; options: string[]; query: string };
+  /** "Prices?" with no service named: the lead, and the page whose sections are offered. */
+  price: { lead: string; page: string };
+  menu: Menu;
+  careGate?: CareGate;
   precheck: PrecheckRule[];
   /** Sentences the assistant must never say, e.g. medical advice. */
   unsafeOutput: RegExp;

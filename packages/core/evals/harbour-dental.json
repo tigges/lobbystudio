@@ -5,8 +5,21 @@
       {
         "say": "How much is a hygienist appointment?",
         "expect": {
-          "contains": [
+          "options": [
+            "NHS",
+            "Private",
+            "Not sure"
+          ],
+          "notContains": [
             "£"
+          ]
+        }
+      },
+      {
+        "say": "Private",
+        "expect": {
+          "contains": [
+            "£75"
           ],
           "kinds": [
             "answer"
@@ -150,6 +163,181 @@
             "fallback"
           ],
           "judge": "Should answer from the hygienist section, e.g. the hygienist appointment and its price."
+        }
+      }
+    ]
+  },
+  {
+    "name": "NHS patient gets NHS charges",
+    "turns": [
+      {
+        "say": "How much is a check-up?",
+        "expect": {
+          "options": [
+            "NHS",
+            "Private",
+            "Not sure"
+          ]
+        }
+      },
+      {
+        "say": "NHS",
+        "expect": {
+          "contains": [
+            "NHS"
+          ],
+          "notContains": [
+            "£55"
+          ],
+          "notKinds": [
+            "fallback"
+          ],
+          "judge": "Gives the NHS Band 1 charge (£27.40) for a check-up, not the private £55."
+        }
+      }
+    ]
+  },
+  {
+    "name": "Not sure explains NHS and private, then asks again",
+    "turns": [
+      {
+        "say": "How much is a crown?",
+        "expect": {
+          "options": [
+            "NHS",
+            "Private",
+            "Not sure"
+          ]
+        }
+      },
+      {
+        "say": "Not sure",
+        "expect": {
+          "contains": [
+            "clinically necessary"
+          ],
+          "options": [
+            "NHS",
+            "Private"
+          ]
+        }
+      },
+      {
+        "say": "Private",
+        "expect": {
+          "contains": [
+            "£650"
+          ],
+          "notKinds": [
+            "fallback"
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "name": "Services pills, without prices until asked",
+    "turns": [
+      {
+        "say": "Services",
+        "expect": {
+          "options": [
+            "Check-ups & hygiene",
+            "Fillings & root canal",
+            "Crowns, bridges & dentures",
+            "More…"
+          ]
+        }
+      },
+      {
+        "say": "Check-ups & hygiene",
+        "expect": {
+          "notContains": [
+            "£"
+          ],
+          "kinds": [
+            "answer"
+          ],
+          "options": [
+            "Check-ups & hygiene prices"
+          ]
+        }
+      },
+      {
+        "say": "Check-ups & hygiene prices",
+        "expect": {
+          "options": [
+            "NHS",
+            "Private",
+            "Not sure"
+          ]
+        }
+      },
+      {
+        "say": "Private",
+        "expect": {
+          "contains": [
+            "£"
+          ],
+          "notKinds": [
+            "fallback"
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "name": "More services",
+    "turns": [
+      {
+        "say": "Services"
+      },
+      {
+        "say": "More…",
+        "expect": {
+          "options": [
+            "Extractions",
+            "Cosmetic treatments",
+            "Implants"
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "name": "Find us pill",
+    "turns": [
+      {
+        "say": "Find us",
+        "expect": {
+          "contains": [
+            "Canada Water"
+          ],
+          "kinds": [
+            "answer"
+          ],
+          "notKinds": [
+            "fallback"
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "name": "Opening hours pill",
+    "turns": [
+      {
+        "say": "Opening hours",
+        "expect": {
+          "contains": [
+            "8am"
+          ],
+          "kinds": [
+            "answer"
+          ],
+          "notKinds": [
+            "fallback"
+          ]
         }
       }
     ]

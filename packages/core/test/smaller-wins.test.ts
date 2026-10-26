@@ -66,14 +66,17 @@ describe("page-aware openings", () => {
     expect(T.pageSlug("/<script>")).toBeNull();
     expect(T.pageSlug(42)).toBeNull();
   });
-  it("opens with a line for the page, and the usual greeting elsewhere", () => {
-    expect(SALON_PACK.greeting(salon, "prices")).toBe(
-      "Hi, I'm the Mikan Hair Studio assistant. Looking at prices? Ask me about any service, and I can find you a free time too.",
-    );
+  it("opens with a line for the page only: no booking nudge, and pain only on the emergencies page", () => {
+    expect(SALON_PACK.greeting(salon, "prices")).toBe("Hi, I'm the Mikan Hair Studio assistant. Looking at prices? Ask me about any service.");
     expect(SALON_PACK.greeting(salon, "")).toBe("Hi, I'm the Mikan Hair Studio assistant. How can I help you today?");
     expect(DENTAL_PACK.greeting(bundle.practice, "")).toBe(DENTAL_PACK.greeting(bundle.practice, null));
-    expect(DENTAL_PACK.greeting(bundle.practice, "")).toContain("I can help with opening hours");
-    expect(DENTAL_PACK.greeting(bundle.practice, "treatments")).toContain("Looking at treatments and prices?");
-    expect(DENTAL_PACK.greeting(bundle.practice, "treatments")).toContain("I'll pass you straight to the team.");
+    expect(DENTAL_PACK.greeting(bundle.practice, "")).toBe("Hi, I'm the Harbour Dental assistant. How can I help you today?");
+    expect(DENTAL_PACK.greeting(bundle.practice, "treatments")).toBe("Hi, I'm the Harbour Dental assistant. Looking at our treatments? Ask me what any of them involves.");
+    for (const page of ["", "treatments", "nhs-private-faq", "book", "contact"]) {
+      expect(DENTAL_PACK.greeting(bundle.practice, page)).not.toMatch(/pain|symptom|urgent/i);
+      expect(DENTAL_PACK.greeting(bundle.practice, page === "book" ? "x" : page)).not.toMatch(/\bbook/i);
+    }
+    expect(DENTAL_PACK.greeting(bundle.practice, "emergencies")).toContain("Need urgent help? Tell me what's happened and I'll get you to the right person.");
   });
+
 });

@@ -29,6 +29,21 @@ import {
   yesNo,
 } from "./guardrails.ts";
 import { OPEN_NOW, openNowAnswer, parseHours } from "./hours.ts";
+import {
+  ASKS_PRICE,
+  careAnswer,
+  isPriceList,
+  itemFor,
+  opening,
+  otherLabel,
+  overview,
+  pricesLabel,
+  readTap,
+  sectionPills,
+  startPills,
+  type Tap,
+} from "./menu.ts";
+import type { MenuMode } from "../packs/types.ts";
 import { isSimpleQuestion, offlineCompose } from "./offline.ts";
 import { updateProfile } from "./profile.ts";
 import * as T from "./templates.ts";
@@ -37,6 +52,7 @@ import type {
   HistoryItem,
   ExecutorEvent,
   ScoredChunk,
+  Section,
   Segment,
   SegmentKind,
   TurnContext,
@@ -72,6 +88,8 @@ const NO_TIME_SUITS = /\b(?:none|neither|no(?:ne)? of (?:these|them|those)|don'?
 const MIN_NOTICE_HOURS = 2;
 const PATCH_TEST_HOURS = 48;
 const OFFER_DECLINE = /^(?:not right now|not now|not yet|maybe later|no(?:,? thanks?(?: you)?)?|i'?m (?:ok|fine|good)(?:,? thanks?)?)[.! ]*$/i;
+/** A price question that already says which kind of care it's about. */
+const NAMES_CARE = /\b(?:nhs|private(?:ly)?)\b/i;
 
 class ReplyWriter {
   readonly segments: Segment[] = [];
@@ -264,6 +282,11 @@ export async function runExecutor(ctx: TurnContext, deps: ExecutorDeps, emit: Em
   const nearMiss = nearMissPending();
   /** A section the visitor confirmed after "Do you mean …?", served for their original question. */
   let confirmedHeading: string | null = null;
+  const lastBot = ctx.history.findLast((h) => h.role === "bot");
+  const gate = pack.careGate;
+  const tap = !ctx.flow && text ? readTap(pack, bundle, text, lastBot, ctx.page) : null;
+  /** The reply carries its own pills, so no booking offer follows and clears them. */
+  let menuPills = false;
 
   if (ctx.action === "handover") {
     commands = [{ cmd: "handover", reason: "visitor_request" }];
@@ -298,6 +321,12 @@ export async function runExecutor(ctx: TurnContext, deps: ExecutorDeps, emit: Em
       commands = [{ cmd: "handover", reason: pre.reason }];
       handoverTrigger = "precheck";
       trace.plannerSkipped = "clinical_precheck";
+    } else if (!ctx.flow && gate && lastBot?.text === gate.question && careAnswer(text)) {
+      trace.plannerSkipped = "care_answer";
+      await answerCare(careAnswer(text)!);
+    } else if (tap) {
+      trace.plannerSkipped = "menu";
+      await serveTap(tap);
     } else if (bookingStep === "confirm" && yesNo(text)) {
       commands = [{ cmd: "set_slot", slot: "confirm", value: yesNo(text)! }];
       trace.plannerSkipped = "deterministic_confirm";
@@ -328,16 +357,17 @@ export async function runExecutor(ctx: TurnContext, deps: ExecutorDeps, emit: Em
     } else if (!ctx.flow && isGreeting(text)) {
       result.act = "acknowledged";
       trace.plannerSkipped = "greeting";
-      out.template("acknowledge", T.GREET_BACK, [], pack.greetOptions);
+      out.template("acknowledge", T.GREET_BACK, [], startPills(pack));
       return finish();
     } else if (!bookingStep && OPEN_NOW.test(text) && (await openNow())) {
       return finish();
     } else if (!bookingStep && PRICE_TOPIC.test(text)) {
-      result.act = "clarify";
       trace.plannerSkipped = "price_topic";
-      const chunks = await deps.retrieve(pack.price.query, bundle);
-      const page = chunks.find((c) => /price/i.test(c.page)) ?? chunks[0];
-      out.template("clarify", pack.price.lead, page ? [sourceOf(page)] : [], pack.price.options);
+      await priceTopic();
+      return finish();
+    } else if (!ctx.flow && gate && !profile.care && ASKS_PRICE.test(text) && !NAMES_CARE.test(text)) {
+      trace.plannerSkipped = "care_question";
+      askCare();
       return finish();
     } else if (bookingStep && bookingStep !== "done" && bookingStep !== SLOT_STEP && asksForFixedTime(text)) {
       timeNoteOnly = true;
@@ -453,7 +483,7 @@ export async function runExecutor(ctx: TurnContext, deps: ExecutorDeps, emit: Em
       case "cannot_handle":
         result.act = c.reason === "out_of_scope" ? "out_of_scope" : "cannot_handle";
         if (c.reason === "abusive") trace.guardrails.push({ rule: "abuse", result: "blocked" });
-        out.template("cannot_handle", pack.cannotHandle(practice, c.reason), [], c.reason === "out_of_scope" ? pack.steerBackOptions : []);
+        out.template("cannot_handle", pack.cannotHandle(practice, c.reason), [], c.reason === "out_of_scope" ? startPills(pack) : []);
         break;
       case "handover":
         doHandover(c.reason, handoverTrigger);
@@ -522,7 +552,7 @@ export async function runExecutor(ctx: TurnContext, deps: ExecutorDeps, emit: Em
   result.flow = flow;
 
   const answeredTotal = (ctx.answeredBefore ?? 0) + result.answered;
-  if (!flow && result.act === "answered" && result.answered > 0) {
+  if (!flow && !menuPills && result.act === "answered" && result.answered > 0) {
     const followUp = pack.followUp?.({ headings: citedHeadings(), slots: profile }) ?? null;
     if (followUp && mayFollowUp(followUp)) {
       trace.guardrails.push({ rule: "booking_offer", result: "hit", detail: "follow-up" });
@@ -661,6 +691,106 @@ export async function runExecutor(ctx: TurnContext, deps: ExecutorDeps, emit: Em
     return T.isDontKnow(ctx.history.findLast((h) => h.role === "bot")?.text ?? "", practice);
   }
 
+  function sectionNamed(heading: string) {
+    return bundle.sections?.find((s) => s.heading === heading) ?? null;
+  }
+
+  async function serveTap(t: Tap) {
+    switch (t.kind) {
+      case "start":
+      case "other": {
+        const item = t.item;
+        if ("heading" in item) return answerSection(item.heading, item.ask);
+        const lead = item.sections.mode === "prices" ? pack.price.lead : T.servicesLead(item.label);
+        if (item.sections.mode === "prices" && gate && !profile.care) return askCare();
+        return listSections(item.sections.page, item.sections.mode, 0, lead);
+      }
+      case "more":
+        return listSections(t.slug, t.mode, t.from, t.mode === "prices" ? pack.price.lead : T.MORE_LEAD);
+      case "prices":
+        return priceFor(t.section.heading);
+      case "section": {
+        if (t.mode === "prices") return priceFor(t.section.heading);
+        if (!isPriceList(t.section)) {
+          const ask = t.section.heading.endsWith("?") ? t.section.heading : `What can you tell me about ${t.section.heading.toLowerCase()}?`;
+          return answerSection(t.section.heading, ask);
+        }
+        const item = itemFor(pack, t.section.slug);
+        const pills = [pricesLabel(t.section.heading), ...(item ? [otherLabel(item)] : [])];
+        out.template("answer", overview(t.section), [sourceOf({ ...t.section, score: 0, keywordScore: 0 })], pills);
+        result.answered += 1;
+        result.topic ??= `${t.section.slug}#${t.section.anchor}`;
+        menuPills = true;
+        return;
+      }
+    }
+  }
+
+  /** A page's section pills, three at a time. */
+  function listSections(slug: string, mode: MenuMode, from: number, lead: string) {
+    const pills = sectionPills(pack, bundle, slug, from);
+    const first = bundle.sections?.find((s) => s.slug === slug);
+    result.act = "clarify";
+    trace.guardrails.push({ rule: "menu", result: "hit", detail: `${slug} (${mode}) from ${from}: ${pills.join(" · ")}` });
+    out.template("clarify", lead, first ? [sourceOf({ ...first, score: 0, keywordScore: 0 })] : [], pills);
+  }
+
+  /** One section, answered for `ask`; its opening lines when the reply writer finds nothing to say. */
+  async function answerSection(heading: string, ask: string) {
+    const before = result.answered;
+    await answer(ask, { quiet: true, only: heading });
+    if (result.answered > before) return;
+    const s = sectionNamed(heading);
+    if (!s) {
+      result.fallbacks += 1;
+      result.act = "fallback";
+      out.template("fallback", T.dontKnow(practice), [], T.ASK_TEAM_OPTIONS);
+      return;
+    }
+    out.template("answer", opening(s), [sourceOf({ ...s, score: 0, keywordScore: 0 })]);
+    result.answered += 1;
+    result.topic ??= `${s.slug}#${s.anchor}`;
+  }
+
+  async function priceFor(heading: string) {
+    if (gate && !profile.care) return askCare();
+    await answerSection(heading, `How much is ${heading.toLowerCase()}?`);
+  }
+
+  /** "Prices?" with nothing named: NHS patients get the NHS charges, everyone else picks a section. */
+  async function priceTopic() {
+    if (gate && !profile.care) return askCare();
+    if (gate && profile.care === "NHS") return answerSection(gate.nhsHeading, "What are the NHS charges?");
+    listSections(pack.price.page, "prices", 0, pack.price.lead);
+  }
+
+  function askCare() {
+    result.act = "clarify";
+    trace.guardrails.push({ rule: "care_question", result: "hit", detail: text });
+    out.template("clarify", gate!.question, [], gate!.options);
+  }
+
+  /** NHS or private settles the question asked before it; "Not sure" explains the difference and asks once more. */
+  async function answerCare(care: "NHS" | "private" | "not sure") {
+    const g = gate!;
+    const askedAgain = !(lastBot?.options ?? g.options).includes(g.options[2]!);
+    if (care === "not sure" && !askedAgain) {
+      await answerSection(g.explainHeading, g.explainHeading);
+      result.act = "clarify";
+      out.template("clarify", g.question, [], g.options.slice(0, 2));
+      return;
+    }
+    profile.care = care;
+    const firstAsk = ctx.history.findLastIndex((h) => h.role === "bot" && h.text === g.question && (h.options ?? g.options).length === g.options.length);
+    const original = ctx.history.slice(0, Math.max(firstAsk, 0)).findLast((h) => h.role === "visitor")?.text ?? "";
+    const priced = bundle.sections?.find((s) => pricesLabel(s.heading).toLowerCase() === original.trim().toLowerCase());
+    const startItem = pack.menu.start.find((i) => i.label.toLowerCase() === original.trim().toLowerCase());
+    if (priced) return priceFor(priced.heading);
+    if (startItem && "sections" in startItem) return listSections(startItem.sections.page, "prices", 0, pack.price.lead);
+    if (!original || PRICE_TOPIC.test(original)) return priceTopic();
+    await answer(original);
+  }
+
   /** Answers from the published opening hours and the practice clock; false when the hours can't be read. */
   async function openNow(): Promise<boolean> {
     const chunks = await deps.retrieve("opening hours", bundle);
@@ -727,10 +857,24 @@ export async function runExecutor(ctx: TurnContext, deps: ExecutorDeps, emit: Em
     }
   }
 
-  /** `quiet` serves the answer only if one is found, for context inside a flow, where a fallback would interrupt it. */
-  async function answer(query: string, { quiet = false } = {}) {
+  /** Once the visitor has said NHS or private, a price comes only from that kind of price list. */
+  async function answer(query: string, opts: { quiet?: boolean; only?: string } = {}) {
+    const care = profile.care;
+    if (!gate || (care !== "NHS" && care !== "private") || !ASKS_PRICE.test(query) || NAMES_CARE.test(query)) return answerFrom(query, opts);
+    if (care === "private") return answerFrom(query, { ...opts, exclude: gate.nhsHeading });
+    const before = result.answered;
+    await answerFrom(`${query.replace(/[?.!]+$/, "")} on the NHS?`, { quiet: true, only: gate.nhsHeading });
+    if (result.answered === before) await answerFrom(query, { quiet: opts.quiet });
+  }
+
+  /**
+   * `quiet` serves the answer only if one is found, for context inside a flow, where a fallback would interrupt it.
+   * `only` answers from that one section; `exclude` leaves one out.
+   */
+  async function answerFrom(query: string, { quiet = false, only, exclude }: { quiet?: boolean; only?: string; exclude?: string } = {}) {
     const threshold = bundle.config.retrievalThreshold;
-    const found = await retrieve(query);
+    const all = await retrieve(query);
+    const found = only ? scoped(all, only, threshold, sectionNamed(only)) : exclude ? all.filter((c) => c.heading !== exclude) : all;
     const chunks = confirmedHeading
       ? found.map((c) => (c.heading === confirmedHeading ? { ...c, score: Math.max(c.score, threshold) } : c)).sort((a, b) => b.score - a.score)
       : found;
@@ -866,6 +1010,12 @@ export async function runExecutor(ctx: TurnContext, deps: ExecutorDeps, emit: Em
     }
     out.template("fallback", T.dontKnow(practice), [], T.ASK_TEAM_OPTIONS);
   }
+}
+
+/** Just the named section, from the search results or else the bundle, scored to clear the threshold. */
+function scoped(found: ScoredChunk[], heading: string, threshold: number, section: Section | null): ScoredChunk[] {
+  const hit = found.find((c) => c.heading === heading) ?? (section ? { ...section, score: 0, keywordScore: 0 } : null);
+  return hit ? [{ ...hit, score: Math.max(hit.score, threshold) }] : [];
 }
 
 /** Section headings of the best-matching page, offered when a short query names a topic rather than a question. */
