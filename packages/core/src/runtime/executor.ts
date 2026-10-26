@@ -3,6 +3,7 @@ import { parseCommands, type Command, type HandoverReason } from "./commands.ts"
 import { NO_ANSWER, parseSentence, SentenceSplitter } from "./compose.ts";
 import type { BookedAppointment, OfferedSlot } from "../booking/types.ts";
 import { wantedDays } from "../booking/when.ts";
+import { businessById } from "../businesses.ts";
 import { packFor } from "../packs/index.ts";
 import {
   applyBookingSlot,
@@ -28,9 +29,12 @@ import {
   yesNo,
 } from "./guardrails.ts";
 import { OPEN_NOW, openNowAnswer, parseHours } from "./hours.ts";
+import { isSimpleQuestion, offlineCompose } from "./offline.ts";
+import { updateProfile } from "./profile.ts";
 import * as T from "./templates.ts";
 import type {
   ExecutorDeps,
+  HistoryItem,
   ExecutorEvent,
   ScoredChunk,
   Segment,
@@ -43,6 +47,12 @@ type Emit = (event: ExecutorEvent) => void;
 
 /** Once the top chunk clears the threshold, nearby chunks are also given to compose as context. */
 const CONTEXT_MARGIN = 0.1;
+/** Just under the threshold, the best match is offered as "Do you mean …?" rather than a don't-know. */
+const NEAR_MISS_MARGIN = 0.08;
+/** A simple question whose best match clears the threshold by this much is answered without the planner. */
+const CONFIDENT_MARGIN = 0.1;
+/** Earlier messages the reply writer sees, so a follow-up question reads as one. */
+const RECENT_FOR_COMPOSE = 4;
 /** Queries this short that compose cannot answer are treated as a topic, not a question. */
 const TOPIC_MAX_WORDS = 3;
 /** Practice-local time for "are you open now?" and for dating "tomorrow" in booking requests. */
@@ -182,6 +192,10 @@ export async function runExecutor(ctx: TurnContext, deps: ExecutorDeps, emit: Em
   const def = pack.booking;
   const bctx: BookingContext = { online: bundle.booking?.mode === "online" && Boolean(deps.booking && pack.online) };
   const out = new ReplyWriter(emit, now);
+  /** Searches made this turn, so the planner check and the answer share one. */
+  const searched = new Map<string, Promise<ScoredChunk[]>>();
+  const visitorTexts = [...ctx.history.filter((h) => h.role === "visitor").map((h) => h.text), ...(ctx.visitorText?.trim() ? [ctx.visitorText.trim()] : [])];
+  const profile = updateProfile(def, ctx.profile ?? {}, visitorTexts, null);
 
   const result: TurnResult = {
     segments: out.segments,
@@ -196,6 +210,7 @@ export async function runExecutor(ctx: TurnContext, deps: ExecutorDeps, emit: Em
     fallbacks: 0,
     topic: null,
     affirmed: false,
+    profile,
     trace: {
       commands: [],
       rejected: [],
@@ -210,6 +225,7 @@ export async function runExecutor(ctx: TurnContext, deps: ExecutorDeps, emit: Em
   const trace = result.trace;
   const finish = () => {
     out.close();
+    result.profile = updateProfile(def, profile, [], result.flow);
     trace.firstTokenMs = out.firstOutputAt === null ? null : out.firstOutputAt - started;
     return result;
   };
@@ -245,6 +261,9 @@ export async function runExecutor(ctx: TurnContext, deps: ExecutorDeps, emit: Em
   const tappedTime = bookingStep === SLOT_STEP && ctx.flow ? pickTime(ctx.flow, text) : null;
   let timeNoteOnly = false;
   let rebook = false;
+  const nearMiss = nearMissPending();
+  /** A section the visitor confirmed after "Do you mean …?", served for their original question. */
+  let confirmedHeading: string | null = null;
 
   if (ctx.action === "handover") {
     commands = [{ cmd: "handover", reason: "visitor_request" }];
@@ -254,6 +273,16 @@ export async function runExecutor(ctx: TurnContext, deps: ExecutorDeps, emit: Em
     rebook = ctx.flow?.name === "booking_request";
     commands = rebook ? [] : [{ cmd: "start_flow", flow: "booking_request" }];
     trace.plannerSkipped = ctx.action ? "exit_button" : "booking_offer";
+  } else if (nearMiss && (text === nearMiss.heading || yesNo(text) === "yes")) {
+    commands = [{ cmd: "answer_from_knowledge", query: nearMiss.question }];
+    confirmedHeading = nearMiss.heading;
+    trace.plannerSkipped = "near_miss_confirmed";
+  } else if (nearMiss && (text === T.SOMETHING_ELSE || yesNo(text) === "no")) {
+    trace.plannerSkipped = "near_miss_declined";
+    result.fallbacks += 1;
+    result.act = "fallback";
+    out.template("fallback", T.dontKnow(practice), [], T.ASK_TEAM_OPTIONS);
+    return finish();
   } else if (askTeamPending() && (text === T.ASK_TEAM_OPTIONS[0] || yesNo(text) === "yes")) {
     commands = [{ cmd: "handover", reason: "visitor_request" }];
     handoverTrigger = "visitor_button";
@@ -314,6 +343,9 @@ export async function runExecutor(ctx: TurnContext, deps: ExecutorDeps, emit: Em
       timeNoteOnly = true;
       trace.plannerSkipped = "booking_time_note";
       out.template("flow", def.timeNote);
+    } else if (!ctx.flow && !pack.enquiry?.pattern.test(text) && isSimpleQuestion(text) && (await confidentMatch(text))) {
+      commands = [{ cmd: "answer_from_knowledge", query: text }];
+      trace.plannerSkipped = "confident_match";
     } else {
       try {
         const planned = await deps.plan(ctx);
@@ -376,7 +408,7 @@ export async function runExecutor(ctx: TurnContext, deps: ExecutorDeps, emit: Em
         await answer(c.query);
         break;
       case "start_flow":
-        flow = startBooking(def, def.prefill?.(knownTexts({ withOffer: offerPending() })));
+        flow = startBooking(def, { ...profile, ...def.prefill?.(knownTexts({ withOffer: offerPending() })) });
         startedLead = Object.keys(flow.slots).length ? (def.startedWith?.(flow.slots) ?? "") : "";
         flowTouched = true;
         break;
@@ -491,7 +523,7 @@ export async function runExecutor(ctx: TurnContext, deps: ExecutorDeps, emit: Em
 
   const answeredTotal = (ctx.answeredBefore ?? 0) + result.answered;
   if (!flow && result.act === "answered" && result.answered > 0) {
-    const followUp = pack.followUp?.({ headings: citedHeadings(), slots: def.prefill?.(knownTexts()) ?? {} }) ?? null;
+    const followUp = pack.followUp?.({ headings: citedHeadings(), slots: profile }) ?? null;
     if (followUp && mayFollowUp(followUp)) {
       trace.guardrails.push({ rule: "booking_offer", result: "hit", detail: "follow-up" });
       out.template("suggest", followUp, [], T.OFFER_OPTIONS);
@@ -556,6 +588,12 @@ export async function runExecutor(ctx: TurnContext, deps: ExecutorDeps, emit: Em
     return [...new Set(out.segments.filter((s) => s.kind === "answer").flatMap((s) => s.sources.map((src) => src.heading)))];
   }
 
+  /** The last few messages, ending with the visitor's current one. */
+  function recentMessages(): HistoryItem[] {
+    const said: HistoryItem[] = text ? [{ role: "visitor", text }] : [];
+    return [...ctx.history.filter((h) => h.role !== "system").slice(-RECENT_FOR_COMPOSE), ...said];
+  }
+
   /** What the visitor has said in this chat, oldest first, plus the offer they're accepting. */
   function knownTexts({ withOffer = false } = {}) {
     const texts = ctx.history.filter((h) => h.role === "visitor").map((h) => h.text);
@@ -569,9 +607,58 @@ export async function runExecutor(ctx: TurnContext, deps: ExecutorDeps, emit: Em
     return /anything else I can help with(?: before your visit)?\?$/.test(ctx.history.findLast((h) => h.role === "bot")?.text ?? "");
   }
 
+  /** The "Do you mean …?" just asked, with the question it was about. */
+  function nearMissPending(): { heading: string; question: string } | null {
+    const i = ctx.history.findLastIndex((h) => h.role === "bot");
+    const lastBot = ctx.history[i];
+    const heading = lastBot?.kind === "clarify" ? T.nearMissHeading(lastBot.text) : null;
+    const question = ctx.history.slice(0, i).findLast((h) => h.role === "visitor")?.text;
+    return heading && question ? { heading, question } : null;
+  }
+
+  /** The question's matches, plus those for the website's own word when the visitor used another. */
+  function synonymSearches(query: string): string[] {
+    const synonyms = [...pack.synonyms, ...(businessById(bundle.tenantId)?.synonyms ?? [])].filter((s) => s.words.test(query));
+    return [...new Set(synonyms.map((s) => s.search))];
+  }
+
+  function retrieve(query: string): Promise<ScoredChunk[]> {
+    const key = query.toLowerCase().replace(/[^a-z0-9£ ]/g, "").trim();
+    let found = searched.get(key);
+    if (!found) {
+      found = search(query);
+      searched.set(key, found);
+    }
+    return found;
+  }
+
+  async function confidentMatch(query: string) {
+    const top = (await retrieve(query))[0];
+    return Boolean(top && top.score >= bundle.config.retrievalThreshold + CONFIDENT_MARGIN);
+  }
+
+  async function search(query: string): Promise<ScoredChunk[]> {
+    const searches = synonymSearches(query);
+    if (searches.length === 0) return deps.retrieve(query, bundle);
+    trace.guardrails.push({ rule: "synonym", result: "hit", detail: `${query} → ${searches.join(" · ")}` });
+    const results = await Promise.all([query, ...searches].map((q) => deps.retrieve(q, bundle)));
+    const best = new Map<number, ScoredChunk>();
+    for (const c of results.flat()) if ((best.get(c.chunkId)?.score ?? -1) < c.score) best.set(c.chunkId, c);
+    return [...best.values()].sort((a, b) => b.score - a.score);
+  }
+
+  /** The best match just under the threshold, when it shares a word with the question; offered as "Do you mean …?". */
+  function nearMissOf(query: string, chunks: ScoredChunk[], threshold: number): ScoredChunk | null {
+    if (ctx.lastBotAct === "clarify" || nearMiss) return null;
+    return (
+      chunks.find(
+        (c) => c.score >= threshold - NEAR_MISS_MARGIN && c.heading !== c.page && !/[\d£]/.test(c.heading) && sharesTopic(query, `${c.heading} ${c.text}`),
+      ) ?? null
+    );
+  }
+
   function askTeamPending() {
-    const lastBot = ctx.history.findLast((h) => h.role === "bot")?.text;
-    return lastBot === T.dontKnow(practice);
+    return T.isDontKnow(ctx.history.findLast((h) => h.role === "bot")?.text ?? "", practice);
   }
 
   /** Answers from the published opening hours and the practice clock; false when the hours can't be read. */
@@ -643,7 +730,10 @@ export async function runExecutor(ctx: TurnContext, deps: ExecutorDeps, emit: Em
   /** `quiet` serves the answer only if one is found, for context inside a flow, where a fallback would interrupt it. */
   async function answer(query: string, { quiet = false } = {}) {
     const threshold = bundle.config.retrievalThreshold;
-    const chunks = await deps.retrieve(query, bundle);
+    const found = await retrieve(query);
+    const chunks = confirmedHeading
+      ? found.map((c) => (c.heading === confirmedHeading ? { ...c, score: Math.max(c.score, threshold) } : c)).sort((a, b) => b.score - a.score)
+      : found;
     const top = chunks[0];
     for (const c of chunks) {
       if (trace.retrieved.some((r) => r.chunkId === c.chunkId)) continue;
@@ -664,8 +754,15 @@ export async function runExecutor(ctx: TurnContext, deps: ExecutorDeps, emit: Em
         detail: `${query}: top ${top ? round(top.score) : "none"} < ${threshold}`,
       });
       if (asksTeamEnquiry(query)) return;
+      const near = nearMissOf(query, chunks, threshold);
+      if (near) {
+        trace.guardrails.push({ rule: "near_miss", result: "hit", detail: `${query}: ${near.heading} ${round(near.score)}` });
+        if (result.act === "answered") result.act = "clarify";
+        out.template("clarify", T.nearMiss(near.heading), [], [near.heading, T.SOMETHING_ELSE]);
+        return;
+      }
       result.fallbacks += 1;
-      out.template("fallback", T.dontKnow(practice), [], T.ASK_TEAM_OPTIONS);
+      out.template("fallback", result.answered > 0 ? T.dontKnowRest(practice) : T.dontKnow(practice), [], T.ASK_TEAM_OPTIONS);
       if (result.act === "answered") result.act = "fallback";
       return;
     }
@@ -674,7 +771,11 @@ export async function runExecutor(ctx: TurnContext, deps: ExecutorDeps, emit: Em
     for (const r of trace.retrieved) {
       if (context.some((c) => c.chunkId === r.chunkId)) r.used = "context";
     }
-    const composed = deps.compose(query, context, bundle);
+    const composeContext = { recent: recentMessages(), profile, related: synonymSearches(query) };
+    const spent = trace.modelCalls.reduce((s, c) => s + c.costUsd, 0);
+    const overBudget = deps.maxTurnCostUsd != null && spent >= deps.maxTurnCostUsd;
+    if (overBudget) trace.guardrails.push({ rule: "cost_cap", result: "hit", detail: `$${spent.toFixed(4)} spent of $${deps.maxTurnCostUsd}` });
+    const composed = overBudget ? offlineCompose(query, context, composeContext) : deps.compose(query, context, bundle, composeContext);
     const splitter = new SentenceSplitter();
     let emitted = 0;
     let blocked = 0;
@@ -753,6 +854,16 @@ export async function runExecutor(ctx: TurnContext, deps: ExecutorDeps, emit: Em
       result.act = "fallback";
     }
     if (noAnswer) trace.guardrails.push({ rule: "compose_no_answer", result: "hit", detail: query });
+    if (result.answered > 0) {
+      out.template("fallback", T.dontKnowRest(practice), [], T.ASK_TEAM_OPTIONS);
+      return;
+    }
+    // The section was right but didn't have the detail: say what it does cover rather than a bare "I don't know".
+    if (noAnswer && blocked === 0 && top.heading !== top.page && top.slug !== T.LEARNED_SLUG) {
+      trace.guardrails.push({ rule: "partial_answer", result: "hit", detail: `${query}: ${top.heading}` });
+      out.template("fallback", T.partial(top.heading, practice), [], [top.heading, T.ASK_TEAM_OPTIONS[0]!]);
+      return;
+    }
     out.template("fallback", T.dontKnow(practice), [], T.ASK_TEAM_OPTIONS);
   }
 }

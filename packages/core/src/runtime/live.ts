@@ -1,9 +1,11 @@
 import { callTool, streamText } from "../llm/anthropic.ts";
 import { costUsd } from "../llm/pricing.ts";
 import { plannerToolSchema } from "./commands.ts";
+import { businessById } from "../businesses.ts";
 import { packFor } from "../packs/index.ts";
 import { nextBookingStep } from "./flows/booking.ts";
-import type { Bundle, ComposeResult, PlannerResult, ScoredChunk, TurnContext } from "./types.ts";
+import { profileLine } from "./profile.ts";
+import type { Bundle, ComposeContext, ComposeResult, HistoryItem, PlannerResult, ScoredChunk, TurnContext } from "./types.ts";
 
 export function plannerSystemPrompt(bundle: Bundle): string {
   const procedures = bundle.procedures.map((p) => `## ${p.key}: ${p.title}\n${p.steps}`).join("\n\n");
@@ -34,6 +36,8 @@ export function plannerSystemPrompt(bundle: Bundle): string {
     "  the website answers, e.g. \"What are your opening hours?\", never a menu heading like \"Ask about prices\".",
     "- If the visitor just picked an option you offered, answer it; do not clarify again.",
     "- Questions about today, tomorrow or right now are answerable from the opening hours: use answer_from_knowledge.",
+    "- Use what the visitor has told us to make follow-up questions standalone, e.g. \"how long does it take?\" after",
+    "  balayage becomes \"How long does balayage take?\", and \"how much?\" after a senior stylist names that level.",
   ].join("\n");
 }
 
@@ -50,13 +54,16 @@ export function practiceNow(d: Date = new Date()): string {
   }).format(d);
 }
 
+function transcript(history: HistoryItem[], place: string): string {
+  const team = `${place.charAt(0).toUpperCase()}${place.slice(1)} team`;
+  return history.map((h) => `${h.role === "visitor" ? "Visitor" : h.role === "staff" ? team : "Assistant"}: ${h.text}`).join("\n");
+}
+
 function plannerUserMessage(ctx: TurnContext): string {
   const pack = packFor(ctx.bundle.vertical);
-  const team = `${pack.place.charAt(0).toUpperCase()}${pack.place.slice(1)} team`;
-  const history = ctx.history
-    .slice(-12)
-    .map((h) => `${h.role === "visitor" ? "Visitor" : h.role === "staff" ? team : "Assistant"}: ${h.text}`)
-    .join("\n");
+  const history = transcript(ctx.history.slice(-12), pack.place);
+  const known = profileLine(ctx.profile ?? {}, pack.booking);
+  const pageTitle = ctx.page ? businessById(ctx.bundle.tenantId)?.pages.find((p) => p.slug === ctx.page)?.title : null;
   let state = "No flow is active.";
   if (ctx.flow?.name === "booking_request") {
     const step =
@@ -68,7 +75,7 @@ function plannerUserMessage(ctx: TurnContext): string {
     state = `Active flow: booking_request. Waiting for: ${step}. Slots so far: ${JSON.stringify(slots)}.${times}`;
   }
   return (
-    `${history ? `Conversation so far:\n${history}\n\n` : ""}${state}\n` +
+    `${history ? `Conversation so far:\n${history}\n\n` : ""}${known ? `What the visitor has told us: ${known}.\n` : ""}${pageTitle ? `The visitor is on the "${pageTitle}" page.\n` : ""}${state}\n` +
     `Last assistant act: ${ctx.lastBotAct ?? "none"}. Now at the ${pack.place}: ${practiceNow()}.\n\n` +
     `Latest visitor message:\n${ctx.visitorText ?? ""}`
   );
@@ -109,8 +116,12 @@ const COMPOSE_SYSTEM = (practiceName: string, place: string) =>
     "- Copy prices, times, numbers and phone numbers exactly. Keep qualifiers such as \"from\".",
     "- Never give advice about symptoms, treatment choices or medicines.",
     "- At most three short sentences, plain British English, speaking as \"we\".",
+    "- If the question can be answered yes or no, start with \"Yes\" or \"No\", then the one fact that shows it.",
     "- Answer only what was asked. When the question names one service, level or size, give just that one",
-    "  (\"A cut and blow-dry with a senior stylist is £75\"), not the whole list. Never say the same fact twice.",
+    "  (\"A cut and blow-dry with a senior stylist is £75\"), not the whole list. If the visitor has told us the",
+    "  service, stylist level or other details, give only the price or time that fits them. Never say the same fact twice.",
+    "- Use the visitor's own words for what they asked about.",
+    "- The conversation is only there to understand the question; never repeat what was already said in it.",
     `- State facts as the ${place}'s own knowledge. Never mention the website, pages, extracts or sources,`,
     "  unless the visitor asks where to find something on the website; then name the page.",
     `- You are told the current day and time at the ${place}. For questions about now, today or tomorrow,`,
@@ -119,18 +130,29 @@ const COMPOSE_SYSTEM = (practiceName: string, place: string) =>
     "- If the extracts do not answer the question, reply with exactly NO_ANSWER.",
   ].join("\n");
 
-export function composeUserMessage(query: string, chunks: ScoredChunk[], now: string = practiceNow(), place = "practice"): string {
+export function composeUserMessage(
+  query: string,
+  chunks: ScoredChunk[],
+  now: string = practiceNow(),
+  place = "practice",
+  context?: ComposeContext & { known: string },
+): string {
   const extracts = chunks.map((c, i) => `[${i + 1}] ${c.page} › ${c.heading}\n${c.text}`).join("\n\n");
-  return `Question: ${query}\nNow at the ${place}: ${now}\n\nExtracts:\n${extracts}`;
+  const recent = context?.recent.length ? `Conversation so far:\n${transcript(context.recent, place)}\n\n` : "";
+  const known = context?.known ? `What the visitor has told us: ${context.known}.\n` : "";
+  const related = context?.related?.length ? ` (on our website: ${context.related.join(", ")})` : "";
+  return `${recent}${known}Question: ${query}${related}\nNow at the ${place}: ${now}\n\nExtracts:\n${extracts}`;
 }
 
-export function liveCompose(query: string, chunks: ScoredChunk[], bundle: Bundle): ComposeResult {
+export function liveCompose(query: string, chunks: ScoredChunk[], bundle: Bundle, context?: ComposeContext): ComposeResult {
   const model = bundle.config.chatModel;
+  const pack = packFor(bundle.vertical);
+  const known = context ? profileLine(context.profile, pack.booking) : "";
   const t0 = Date.now();
   const { stream, done } = streamText({
     model,
-    system: COMPOSE_SYSTEM(bundle.practice.name, packFor(bundle.vertical).place),
-    messages: [{ role: "user", content: composeUserMessage(query, chunks, practiceNow(), packFor(bundle.vertical).place) }],
+    system: COMPOSE_SYSTEM(bundle.practice.name, pack.place),
+    messages: [{ role: "user", content: composeUserMessage(query, chunks, practiceNow(), pack.place, context && { ...context, known }) }],
   });
   return {
     stream,

@@ -2,7 +2,8 @@ import type { Command } from "./commands.ts";
 import { packFor } from "../packs/index.ts";
 import { nextBookingStep } from "./flows/booking.ts";
 import { yesNo } from "./guardrails.ts";
-import type { ComposeResult, PlannerResult, ScoredChunk, TurnContext } from "./types.ts";
+import { REFERS_BACK, withProfile } from "./profile.ts";
+import type { ComposeContext, ComposeResult, PlannerResult, ScoredChunk, TurnContext } from "./types.ts";
 
 /**
  * Deterministic stand-ins for the chat model. Used when no API key is configured, for
@@ -26,6 +27,16 @@ function splitQuestions(text: string): string[] {
     .map((p) => p.trim())
     .filter((p) => p.length > 3);
   return parts.length ? parts.slice(0, 3) : [text.trim()];
+}
+
+/** One standalone question with nothing for the planner to decide: no booking, handover, follow-up or second question. */
+export function isSimpleQuestion(text: string): boolean {
+  return (
+    looksLikeQuestion(text) &&
+    splitQuestions(text).length === 1 &&
+    text.split(/\s+/).length <= 15 &&
+    ![BOOK, PERSON, COMPLAINT, RECORD, OFF_TOPIC, REFERS_BACK].some((p) => p.test(text))
+  );
 }
 
 export async function offlinePlan(ctx: TurnContext): Promise<PlannerResult> {
@@ -54,7 +65,7 @@ export async function offlinePlan(ctx: TurnContext): Promise<PlannerResult> {
     const first = def.firstValueFrom(text);
     if (first) commands.push({ cmd: "set_slot", slot: def.slots[0]!, value: first });
   } else {
-    for (const q of splitQuestions(text)) commands.push({ cmd: "answer_from_knowledge", query: q });
+    for (const q of splitQuestions(text)) commands.push({ cmd: "answer_from_knowledge", query: withProfile(q, ctx.profile ?? {}, def) });
   }
   return { commands, call: null };
 }
@@ -92,12 +103,13 @@ export function onlyAskedFor(line: string, query: string): string {
 }
 
 /** Picks the lines of the top chunks that best overlap the query and cites them. */
-export function offlineCompose(query: string, chunks: ScoredChunk[]): ComposeResult {
-  const q = terms(query);
+export function offlineCompose(query: string, chunks: ScoredChunk[], context?: ComposeContext): ComposeResult {
+  const q = [...new Set(terms(`${query} ${context?.related?.join(" ") ?? ""}`))];
+  const p = terms(Object.values(context?.profile ?? {}).join(" ")).filter((t) => !q.includes(t));
   const scored: { line: string; idx: number; score: number }[] = [];
   const best = chunks[0]?.score ?? 0;
   chunks.forEach((c, i) => {
-    if (c.score < best - 0.03) return;
+    if (c.score < best - 0.06) return;
     for (const line of c.text.split(/\n+|(?<=\.)\s+(?=[A-Z])/)) {
       const clean = line.replace(/^[-*]\s*/, "").trim();
       if (clean.length < 8) continue;
@@ -105,18 +117,24 @@ export function offlineCompose(query: string, chunks: ScoredChunk[]): ComposeRes
       const overlap = q.filter((t) => lt.some((l) => l.startsWith(t.slice(0, 5)))).length;
       const label = /^([^:]{3,60}):/.exec(clean)?.[1]?.toLowerCase();
       const named = label && query.toLowerCase().includes(label) ? 0.5 : 0;
-      scored.push({ line: clean, idx: i + 1, score: overlap + named - i * 0.1 });
+      // What the visitor told us earlier breaks ties, e.g. the senior stylist's price over the others.
+      const fits = Math.min(0.45, 0.15 * p.filter((t) => lt.some((l) => l.startsWith(t.slice(0, 5)))).length);
+      scored.push({ line: clean, idx: i + 1, score: overlap + named + (overlap > 0 ? fits : 0) - i * 0.1 });
     }
   });
   scored.sort((a, b) => b.score - a.score);
   const covers = (line: string) => q.filter((t) => terms(line).some((l) => l.startsWith(t.slice(0, 5))));
-  const picked: typeof scored = [];
+  let picked: typeof scored = [];
   for (const s of scored) {
     if (s.score <= 0 || picked.length === 2) break;
     // A second line only when it answers part of the question the first didn't, so a fact isn't said twice.
-    const covered = new Set(picked.flatMap((p) => covers(p.line)));
+    const covered = new Set(picked.flatMap((x) => covers(x.line)));
     if (picked.length && covers(s.line).every((t) => covered.has(t))) continue;
     picked.push(s);
+  }
+  // The visitor's word isn't on the website, but the section it stands for was found: its first sentence answers.
+  if (picked.length === 0 && chunks[0] && context?.related?.includes(chunks[0].heading)) {
+    picked = [{ line: chunks[0].text.split(/\n+|(?<=\.)\s+(?=[A-Z])/)[0]!.trim(), idx: 1, score: 1 }];
   }
   const text = picked.length
     ? picked.map((p) => `${onlyAskedFor(p.line, query).replace(/[.]$/, "")} [${p.idx}].`).join(" ")

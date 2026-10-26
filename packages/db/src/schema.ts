@@ -174,6 +174,10 @@ export const conversations = pgTable(
     versionId: integer("version_id").notNull(),
     status: conversationStatusEnum("status").notNull().default("active"),
     flow: jsonb("flow").$type<FlowState | null>(),
+    /** What the visitor has told us, keyed like the booking steps, e.g. { service: "Balayage", stylist: "Senior stylist" }. */
+    profile: jsonb("profile").$type<Record<string, string>>().notNull().default({}),
+    /** The website page the chat was opened on, e.g. "prices"; "" for the home page. */
+    page: text("page"),
     topic: text("topic"),
     answeredCount: integer("answered_count").notNull().default(0),
     fallbackCount: integer("fallback_count").notNull().default(0),
@@ -337,7 +341,17 @@ export const labelledAnswers = pgTable("labelled_answers", {
   answer: text("answer").notNull(),
   author: text("author").notNull(),
   createdAt: ts("created_at").notNull().defaultNow(),
+  /** The one question the reply answers, searched for when a later visitor asks the same thing. */
+  asked: text("asked"),
+  /** "published" answers are searched with the website; "held" wait for the team; "removed" were undone. */
+  status: text("status").$type<LearnedStatus>().notNull().default("held"),
+  /** Why it wasn't published straight away, e.g. "safety topic". */
+  heldReason: text("held_reason"),
+  embedding: vector("embedding", { dimensions: 384 }),
+  reviewedAt: ts("reviewed_at"),
 });
+
+export type LearnedStatus = "published" | "held" | "removed";
 
 export const bookingRequests = pgTable("booking_requests", {
   id: bigserial("id", { mode: "number" }).primaryKey(),

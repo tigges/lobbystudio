@@ -1,5 +1,6 @@
 import { getPool } from "@dental-bot/db";
 import type { Bundle, ScoredChunk } from "../runtime/types.ts";
+import { searchLearned } from "../services/learned.ts";
 import { embed } from "./embed.ts";
 
 /** Weight of the normalised keyword rank added to the semantic score. Calibrated with `calibrate.ts`. */
@@ -41,6 +42,7 @@ export async function searchChunks(query: string, bundle: Bundle, limit = 6): Pr
       WHERE c.tenant_id = $3 AND c.content_version_id = $4`,
     [`[${vec!.join(",")}]`, query, bundle.tenantId, bundle.contentVersionId],
   );
+  const learned = await searchLearned(bundle.tenantId, vec!, bundle.config.retrievalThreshold);
   return rows
     .map((r) => ({
       chunkId: Number(r.id),
@@ -52,6 +54,7 @@ export async function searchChunks(query: string, bundle: Bundle, limit = 6): Pr
       score: Number(r.semantic) + KEYWORD_WEIGHT * Number(r.kw),
       keywordScore: Number(r.kw),
     }))
+    .concat(learned)
     .sort((a, b) => b.score - a.score)
     .slice(0, limit);
 }
