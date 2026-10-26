@@ -58,11 +58,11 @@ export const GREET_BACK = "Hello! What would you like to know?";
 export const GREET_OPTIONS = ["What are your opening hours?", "How much is a check-up?", "Do you see NHS patients?"];
 
 export function nearMiss(heading: string): string {
-  return `Just to check, do you mean “${heading}”?`;
+  return `Just to check, do you mean “${heading}”${heading.endsWith("?") ? "" : "?"}`;
 }
 
 export function nearMissHeading(text: string): string | null {
-  return /^Just to check, do you mean “(.+)”\?$/.exec(text)?.[1] ?? null;
+  return /^Just to check, do you mean “(.+)”\??$/.exec(text)?.[1] ?? null;
 }
 
 export const SOMETHING_ELSE = "Something else";

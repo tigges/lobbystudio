@@ -1,8 +1,11 @@
 import { and, asc, desc, eq, gt } from "drizzle-orm";
 import { conversations, getDb, handovers, labelledAnswers, messages, tenants } from "@dental-bot/db";
 import { packFor } from "../packs/index.ts";
+import type { HandoverReason } from "../runtime/commands.ts";
 import { tokeniseForConversation } from "../pii/vault.ts";
+import * as T from "../runtime/templates.ts";
 import { loadConversation } from "./conversations.ts";
+import { askedBefore, learn } from "./learned.ts";
 
 /**
  * The practice replies in the visitor's chat. With `saveAsLabel`, the reply is stored as the
@@ -54,7 +57,7 @@ export async function staffReply(opts: {
 
   if (opts.saveAsLabel && handover) {
     const priorMessages = await db
-      .select({ id: messages.id, role: messages.role, text: messages.text, createdAt: messages.createdAt })
+      .select({ id: messages.id, role: messages.role, text: messages.text, kind: messages.kind, createdAt: messages.createdAt })
       .from(messages)
       .where(and(eq(messages.conversationId, conv.id), eq(messages.role, "visitor")))
       .orderBy(asc(messages.id));
@@ -63,15 +66,28 @@ export async function staffReply(opts: {
       .slice(Math.max(triggerIndex, 0))
       .map((m) => m.text)
       .join("\n");
-    await db.insert(labelledAnswers).values({
-      tenantId: opts.tenantId,
-      conversationId: conv.id,
-      handoverId: handover.id,
-      question,
-      answer: text,
-      author: opts.author,
-      createdAt: now,
-    });
+    const [saved] = await db
+      .insert(labelledAnswers)
+      .values({
+        tenantId: opts.tenantId,
+        conversationId: conv.id,
+        handoverId: handover.id,
+        question,
+        answer: text,
+        author: opts.author,
+        createdAt: now,
+      })
+      .returning({ id: labelledAnswers.id });
+    const [tenant] = await db.select({ vertical: tenants.vertical }).from(tenants).where(eq(tenants.id, opts.tenantId));
+    const pack = packFor(tenant?.vertical);
+    const asked = askedBefore(
+      priorMessages.filter((m) => m.createdAt <= handover.createdAt),
+      [...T.ASK_TEAM_OPTIONS, T.SOMETHING_ELSE, T.BOOK_OPTION, pack.labels.talk],
+    );
+    // Learning is a bonus: the reply has already reached the visitor, so a failure here only leaves the answer held.
+    await learn({ id: saved!.id, reason: handover.reason as HandoverReason, asked, answer: text, pack }).catch((err: Error) =>
+      db.update(labelledAnswers).set({ heldReason: `couldn't be indexed: ${err.message}` }).where(eq(labelledAnswers.id, saved!.id)),
+    );
   }
 }
 

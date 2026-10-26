@@ -313,7 +313,11 @@ class Widget {
     for (const s of m.sources) byPage.set(s.slug, [...(byPage.get(s.slug) ?? []), s]);
     for (const group of byPage.values()) {
       const first = group[0]!;
-      const a = el("a", { class: "source", href: sourceHref(first), target: "_top" }, `Source: ${first.page}`);
+      // Answers the team gave in an earlier chat have no page to link to.
+      const a =
+        first.slug === "learned"
+          ? el("span", { class: "source" }, first.page)
+          : el("a", { class: "source", href: sourceHref(first), target: "_top" }, `Source: ${first.page}`);
       a.title = group.map((s) => s.heading).join(" · ");
       meta.append(a);
     }
