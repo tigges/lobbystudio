@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { groupTurns, insights, labelTitle, SLOW_TURN_MS, TURN_LABELS } from "@dental-bot/core";
+import { groupTurns, insights, labelTitle, recentEvalRuns, SLOW_TURN_MS, TURN_LABELS, type EvalRunSummary } from "@dental-bot/core";
 import { label, OUTCOME_STYLE, when } from "@/lib/format";
 import { currentTenant } from "@/lib/business";
 import { ActionedForm, LabelChip, LabelForm } from "../labels";
@@ -105,12 +105,76 @@ function Row({ to, on, name, sub, count, total }: { to: string; on: boolean; nam
   );
 }
 
+const SCORE_NAMES = [
+  ["correct", "Correct"],
+  ["grounded", "From your content"],
+  ["answers", "Answers the question"],
+  ["nextStep", "Clear next step"],
+] as const;
+
+function ChatQuality({ runs }: { runs: EvalRunSummary[] }) {
+  const [latest, ...earlier] = runs;
+  return (
+    <section className="rounded-2xl bg-white p-4 ring-1 ring-slate-200">
+      <h2 className="font-semibold text-slate-900">Chat quality</h2>
+      <p className="mb-3 text-xs text-slate-500">
+        Saved test conversations replayed against the assistant (<code>pnpm eval</code>). Scores out of 5 are from a model reading each reply.
+      </p>
+      {!latest ? (
+        <p className="text-sm text-slate-400">No test runs yet.</p>
+      ) : (
+        <div className="space-y-3 text-sm">
+          <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
+            <span className="text-2xl font-semibold text-slate-900">
+              {latest.passed}/{latest.cases}
+            </span>
+            <span className="text-slate-500">
+              passed · {latest.llmMode} · {latest.build ? `build ${latest.build}` : "local build"} · {when(latest.createdAt)}
+            </span>
+          </div>
+          {latest.scores && (
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+              {SCORE_NAMES.map(([key, name]) => (
+                <div key={key} className="rounded-lg bg-slate-50 px-2.5 py-1.5">
+                  <p className="text-lg font-semibold tabular-nums text-slate-900">{latest.scores![key].toFixed(1)}</p>
+                  <p className="text-xs text-slate-500">{name}</p>
+                </div>
+              ))}
+            </div>
+          )}
+          {latest.failed.length > 0 && (
+            <p className="text-xs text-slate-600">
+              <span className="text-slate-400">Failed: </span>
+              {latest.failed.join(" · ")}
+            </p>
+          )}
+          {earlier.length > 0 && (
+            <ul className="space-y-0.5 border-t border-slate-100 pt-2 text-xs text-slate-500">
+              {earlier.map((r) => (
+                <li key={r.id} className="flex gap-3">
+                  <span className="w-12 tabular-nums text-slate-800">
+                    {r.passed}/{r.cases}
+                  </span>
+                  <span>
+                    {r.llmMode} · {r.build ? `build ${r.build}` : "local build"} · {when(r.createdAt)}
+                    {r.scores ? ` · correct ${r.scores.correct.toFixed(1)}` : ""}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+    </section>
+  );
+}
+
 export default async function InsightsPage({ searchParams }: { searchParams: Promise<Params> }) {
   const params = await searchParams;
   const days = params.days ?? "30";
   const filter = { sinceDays: days === "all" ? null : Number(days), version: params.version ? Number(params.version) : null };
   const tenant = await currentTenant();
-  const data = await insights(tenant, filter);
+  const [data, evalRuns] = await Promise.all([insights(tenant, filter), recentEvalRuns(tenant)]);
   const selected = params.group ?? null;
   const list = selected ? await groupTurns(tenant, selected, filter) : [];
   const { totals } = data;
@@ -170,6 +234,8 @@ export default async function InsightsPage({ searchParams }: { searchParams: Pro
           </Link>
         ))}
       </div>
+
+      <ChatQuality runs={evalRuns} />
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Panel title="What the assistant did" hint="Each turn counted once per kind of reply it gave.">

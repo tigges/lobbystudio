@@ -6,7 +6,7 @@ import { phorest } from "../src/booking/phorest.ts";
 import type { BookingSystem, OfferedSlot, SlotQuery } from "../src/booking/types.ts";
 import { wantedDays, wantedHours } from "../src/booking/when.ts";
 import { SALON_PACK } from "../src/packs/salon.ts";
-import { NONE_OF_THESE, pickTime, runExecutor } from "../src/runtime/executor.ts";
+import { CALL_ME, MORE_TIMES, NONE_OF_THESE, OTHER_DAY, pickTime, runExecutor } from "../src/runtime/executor.ts";
 import { namedDays } from "../src/runtime/flows/salon-booking.ts";
 import type { Bundle, ExecutorDeps, HistoryItem, ScoredChunk, TurnResult } from "../src/runtime/types.ts";
 import { bundle as dentalBundle, ctx, fakeDeps } from "./fixtures.ts";
@@ -139,7 +139,11 @@ describe("salon booking, online", () => {
     const { system, booked } = fakeSystem();
     let r = await upToTimes(system);
     r = await turn(r.flow, NONE_OF_THESE, system);
+    expect(last(r).text).toBe(SALON_PACK.online!.moreTimes);
+    expect(last(r).options).toEqual([MORE_TIMES, OTHER_DAY, CALL_ME]);
+    r = await turn(r.flow, CALL_ME, system);
     expect(r.flow!.slots.slot).toBe("none");
+    expect(last(r).text).toBe(SALON_PACK.booking.prompts.name);
     r = await turn(r.flow, "Mia", system, "name");
     r = await turn(r.flow, "07700 900321", system, "phone");
     expect(last(r).text).toMatch(/best time Saturday morning.*Shall I send this to the team\?$/s);
@@ -147,6 +151,47 @@ describe("salon booking, online", () => {
     expect(booked).toHaveLength(0);
     expect(r.bookedOnline).toBeNull();
     expect(last(r).text).toMatch(/The team will call you on 07700 900321 to find a time and book your patch test/);
+  });
+
+  it("shows the next free times after the ones turned down", async () => {
+    const { system, queries } = fakeSystem();
+    let r = await upToTimes(system);
+    r = await turn(r.flow, NONE_OF_THESE, system);
+    r = await turn(r.flow, MORE_TIMES, system);
+    expect(queries).toHaveLength(2);
+    expect(queries[1]!.earliest.getTime()).toBe(Date.parse(TIMES[1]!.start) + 60_000);
+    expect(queries[1]).toMatchObject({ preferredTime: "Saturday morning" });
+    expect(last(r).text).toMatch(/^Here are the next free times/);
+    expect(last(r).options).toEqual([...TIMES.map((t) => t.label), NONE_OF_THESE]);
+    expect(r.flow!.slots.slot_choice).toBeUndefined();
+  });
+
+  it("searches again for a day the visitor names", async () => {
+    const { system, queries } = fakeSystem();
+    let r = await upToTimes(system);
+    r = await turn(r.flow, NONE_OF_THESE, system);
+    r = await turn(r.flow, "Friday afternoon instead", system);
+    expect(queries).toHaveLength(2);
+    expect(queries[1]).toMatchObject({ preferredTime: "Friday afternoon", partOfDay: null });
+    expect(last(r).text).toMatch(/^Here are the next free times/);
+  });
+
+  it("asks the part of the day when the new day doesn't say it", async () => {
+    const { system } = fakeSystem();
+    let r = await upToTimes(system);
+    r = await turn(r.flow, NONE_OF_THESE, system);
+    r = await turn(r.flow, "how about next week?", system);
+    expect(r.flow!.slots.preferred_time).toBe("next week");
+    expect(last(r).text).toBe(SALON_PACK.booking.prompts.time_of_day);
+  });
+
+  it("asks for another day when the visitor wants one but doesn't say which", async () => {
+    const { system } = fakeSystem();
+    let r = await upToTimes(system);
+    r = await turn(r.flow, NONE_OF_THESE, system);
+    r = await turn(r.flow, OTHER_DAY, system);
+    expect(last(r).text).toBe(SALON_PACK.booking.prompts.preferred_time);
+    expect(r.flow!.slots.preferred_time).toBeUndefined();
   });
 
   it("says so and moves on to a call-back when the diary has nothing free", async () => {
@@ -205,6 +250,59 @@ describe("picking an offered time", () => {
     ["sat", null],
   ])("%j", (text, expected) => {
     expect(pickTime(flow, text)).toEqual(expected ?? null);
+  });
+});
+
+describe("from the second salon label export", () => {
+  it("greets briefly", () => {
+    expect(SALON_PACK.greeting(salon.practice)).toBe("Hi, I'm the Mikan Hair Studio assistant. How can I help you today?");
+  });
+
+  it("passes a wedding hair question it can't answer to the team and asks for contact details", async () => {
+    const { deps } = fakeDeps({ commands: [{ cmd: "answer_from_knowledge", query: "Do you do wedding hair trials" }], chunks: [] });
+    const r = await runExecutor(ctx({ bundle: salon, visitorText: "Do you do wedding hair trials?" }), deps);
+    expect(r.handover).toEqual({ reason: "visitor_request", trigger: "planner" });
+    expect(r.segments.map((s) => s.text)).toEqual([
+      "That's one for the team, so I've passed your question on. They'll reply here during opening hours, or you can call us on 020 7946 0588.",
+      "So the team can get back to you, what's your name?",
+    ]);
+    expect(r.fallbacks).toBe(0);
+  });
+
+  it("still offers to ask the team for other questions it can't answer", async () => {
+    const { deps } = fakeDeps({ commands: [{ cmd: "answer_from_knowledge", query: "Do you sell gift cards" }], chunks: [] });
+    const r = await runExecutor(ctx({ bundle: salon, visitorText: "Do you sell gift cards?" }), deps);
+    expect(r.handover).toBeNull();
+    expect(r.act).toBe("fallback");
+  });
+
+  it("hands a pregnancy question over without talking about medical advice", async () => {
+    const { deps } = fakeDeps();
+    const r = await runExecutor(ctx({ bundle: salon, visitorText: "is it safe to bleach my hair while pregnant?" }), deps);
+    expect(r.segments[0]!.text).toBe(
+      "That's one for our team, as the answer depends on you, so I've passed your question on. They'll reply here during opening hours, or you can call us on 020 7946 0588.",
+    );
+  });
+
+  it("books a cut with a senior stylist from start to finish, as labelled good", async () => {
+    const { system, booked } = fakeSystem();
+    let r = await turn(null, { action: "book" }, system);
+    r = await turn(r.flow, "Cut & style", system);
+    expect(last(r).text).toBe(SALON_PACK.booking.prompts.stylist);
+    r = await turn(r.flow, "Senior stylist", system);
+    expect(last(r).text).toBe(SALON_PACK.booking.prompts.preferred_time);
+    r = await turn(r.flow, "wednesday 10am", system, "preferred_time");
+    expect(last(r).text).toBe("Here are the next free times with a senior stylist. Which suits you?");
+    r = await turn(r.flow, TIMES[0]!.label, system);
+    expect(last(r).text).toBe(SALON_PACK.booking.prompts.name);
+    r = await turn(r.flow, "Mia", system, "name");
+    r = await turn(r.flow, "07700 900321", system, "phone");
+    expect(last(r).text).toBe(`Here's what I have: Cut & style, ${TIMES[0]!.label}, for Mia on 07700 900321. Shall I book this in?`);
+    r = await turn(r.flow, "Yes, please", system);
+    expect(booked).toHaveLength(1);
+    expect(last(r).text).toBe(
+      `You're booked in: Cut & style, ${TIMES[0]!.label}. To change it, call us on 020 7946 0588. Is there anything else I can help with before your visit?`,
+    );
   });
 });
 

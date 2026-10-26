@@ -157,12 +157,12 @@ export const SALON_BOOKING: BookingDef = {
     [SLOT_STEP]: (_s, ctx) => ctx.online,
   },
   dependents: {
-    service: ["length", "patch_test", SLOT_STEP, "slot_id", "slot_start", "offered"],
-    length: [SLOT_STEP, "slot_id", "slot_start", "offered"],
-    stylist: [SLOT_STEP, "slot_id", "slot_start", "offered"],
-    patch_test: [SLOT_STEP, "slot_id", "slot_start", "offered"],
-    preferred_time: ["time_of_day", SLOT_STEP, "slot_id", "slot_start", "offered"],
-    time_of_day: [SLOT_STEP, "slot_id", "slot_start", "offered"],
+    service: ["length", "patch_test", SLOT_STEP, "slot_id", "slot_start", "offered", "slot_choice", "times_after"],
+    length: [SLOT_STEP, "slot_id", "slot_start", "offered", "slot_choice", "times_after"],
+    stylist: [SLOT_STEP, "slot_id", "slot_start", "offered", "slot_choice", "times_after"],
+    patch_test: [SLOT_STEP, "slot_id", "slot_start", "offered", "slot_choice", "times_after"],
+    preferred_time: ["time_of_day", SLOT_STEP, "slot_id", "slot_start", "offered", "slot_choice", "times_after"],
+    time_of_day: [SLOT_STEP, "slot_id", "slot_start", "offered", "slot_choice", "times_after"],
   },
   validate: validateSalonSlot,
   invalid: {

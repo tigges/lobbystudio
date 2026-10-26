@@ -63,7 +63,7 @@ function plannerUserMessage(ctx: TurnContext): string {
       ctx.flow.step === "change"
         ? "change (visitor wants to change a detail)"
         : nextBookingStep(pack.booking, ctx.flow, { online: ctx.bundle.booking?.mode === "online" });
-    const { offered, slot_id: _id, slot_start: _start, ...slots } = ctx.flow.slots;
+    const { offered, slot_id: _id, slot_start: _start, slot_choice: _choice, times_after: _after, ...slots } = ctx.flow.slots;
     const times = offered ? ` Times offered: ${(JSON.parse(offered) as { label: string }[]).map((o) => `"${o.label}"`).join(", ")}.` : "";
     state = `Active flow: booking_request. Waiting for: ${step}. Slots so far: ${JSON.stringify(slots)}.${times}`;
   }

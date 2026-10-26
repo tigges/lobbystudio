@@ -352,3 +352,25 @@ export const bookingRequests = pgTable("booking_requests", {
   externalRef: text("external_ref"),
   createdAt: ts("created_at").notNull().defaultNow(),
 });
+
+export type EvalScores = { correct: number; grounded: number; answers: number; nextStep: number };
+
+/** One run of the saved test conversations, so chat quality can be compared between builds. */
+export const evalRuns = pgTable(
+  "eval_runs",
+  {
+    id: bigserial("id", { mode: "number" }).primaryKey(),
+    tenantId: text("tenant_id").notNull(),
+    build: text("build"),
+    llmMode: text("llm_mode").notNull(),
+    cases: integer("cases").notNull(),
+    passed: integer("passed").notNull(),
+    /** Average judge scores out of 5; null when the run wasn't judged. */
+    scores: jsonb("scores").$type<EvalScores | null>(),
+    /** Per case: checks that failed and the judge's notes. */
+    results: jsonb("results").$type<unknown[]>().notNull(),
+    costUsd: numeric("cost_usd", { precision: 12, scale: 6, mode: "number" }).notNull().default(0),
+    createdAt: ts("created_at").notNull().defaultNow(),
+  },
+  (t) => [index("eval_runs_tenant_created").on(t.tenantId, t.createdAt)],
+);

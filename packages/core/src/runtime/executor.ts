@@ -2,6 +2,7 @@ import type { FlowState, Source } from "@dental-bot/db/schema";
 import { parseCommands, type Command, type HandoverReason } from "./commands.ts";
 import { NO_ANSWER, parseSentence, SentenceSplitter } from "./compose.ts";
 import type { BookedAppointment, OfferedSlot } from "../booking/types.ts";
+import { wantedDays } from "../booking/when.ts";
 import { packFor } from "../packs/index.ts";
 import {
   applyBookingSlot,
@@ -9,6 +10,7 @@ import {
   bookingOptions,
   bookingPrompt,
   nextBookingStep,
+  PART_OF_DAY,
   quickReplyValue,
   SLOT_STEP,
   startBooking,
@@ -239,6 +241,7 @@ export async function runExecutor(ctx: TurnContext, deps: ExecutorDeps, emit: Em
   let commands: Command[] = [];
   let handoverTrigger: "precheck" | "planner" | "visitor_button" = "planner";
   const bookingStep = ctx.flow?.name === "booking_request" ? nextStepOf(ctx.flow) : null;
+  const timeChoice = bookingStep === SLOT_STEP && ctx.flow?.slots.slot_choice ? readTimeChoice(text) : null;
   const tappedTime = bookingStep === SLOT_STEP && ctx.flow ? pickTime(ctx.flow, text) : null;
   let timeNoteOnly = false;
   let rebook = false;
@@ -269,6 +272,8 @@ export async function runExecutor(ctx: TurnContext, deps: ExecutorDeps, emit: Em
     } else if (bookingStep === "confirm" && yesNo(text)) {
       commands = [{ cmd: "set_slot", slot: "confirm", value: yesNo(text)! }];
       trace.plannerSkipped = "deterministic_confirm";
+    } else if (timeChoice) {
+      trace.plannerSkipped = "deterministic_option";
     } else if (tappedTime) {
       commands = [{ cmd: "set_slot", slot: SLOT_STEP, value: text }];
       trace.plannerSkipped = "deterministic_option";
@@ -335,7 +340,7 @@ export async function runExecutor(ctx: TurnContext, deps: ExecutorDeps, emit: Em
     trace.guardrails.push({ rule: "no_double_clarify", result: "hit", detail: "answered the chosen option instead" });
   }
 
-  if (!timeNoteOnly && commands.length === 0 && bookingStep && bookingStep !== "done" && bookingStep !== "change" && text) {
+  if (!timeNoteOnly && !timeChoice && commands.length === 0 && bookingStep && bookingStep !== "done" && bookingStep !== "change" && text) {
     const value = bookingStep === "confirm" ? yesNo(text) : text;
     if (value) {
       commands = [{ cmd: "set_slot", slot: bookingStep, value }];
@@ -348,6 +353,22 @@ export async function runExecutor(ctx: TurnContext, deps: ExecutorDeps, emit: Em
   let flowTouched = false;
   let startedLead = "";
   let invalidSlot: string | null = null;
+  let enquiry = false;
+
+  if (timeChoice && flow) {
+    const { slot_choice: _choice, offered: _offered, times_after: _after, ...slots } = flow.slots;
+    flowTouched = true;
+    if (timeChoice.kind === "call") {
+      flow = applyBookingSlot(def, { ...flow, slots: { ...slots, offered: flow.slots.offered! } }, SLOT_STEP, "none");
+    } else if (timeChoice.kind === "more") {
+      const last = offeredTimes(flow).at(-1)?.start;
+      flow = { ...flow, slots: last ? { ...slots, times_after: last } : slots };
+    } else {
+      const { preferred_time: _time, time_of_day: _part, ...rest } = slots;
+      flow = { ...flow, slots: rest };
+      if (timeChoice.value) flow = applyBookingSlot(def, flow, "preferred_time", withDates(timeChoice.value, new Date(now()), TIME_ZONE));
+    }
+  }
 
   for (const c of commands) {
     switch (c.cmd) {
@@ -364,8 +385,12 @@ export async function runExecutor(ctx: TurnContext, deps: ExecutorDeps, emit: Em
         flowTouched = true;
         if (c.slot === SLOT_STEP) {
           const picked = pickTime(flow, c.value);
-          if (picked) {
-            flow = applyBookingSlot(def, flow, SLOT_STEP, picked === "none" ? "none" : picked.label);
+          if (picked === "none" && !flow.slots.slot_choice) {
+            // Turning the times down first gets more times or another day, not straight to a call-back.
+            flow = { ...flow, slots: { ...flow.slots, slot_choice: "pending" } };
+          } else if (picked) {
+            const { slot_choice: _choice, ...slots } = flow.slots;
+            flow = applyBookingSlot(def, { ...flow, slots }, SLOT_STEP, picked === "none" ? "none" : picked.label);
             if (picked !== "none") flow.slots = { ...flow.slots, slot_id: picked.id, slot_start: picked.start };
           } else {
             invalidSlot = SLOT_STEP;
@@ -404,6 +429,11 @@ export async function runExecutor(ctx: TurnContext, deps: ExecutorDeps, emit: Em
     }
   }
 
+  if (enquiry && !flow) {
+    doHandover("visitor_request", "planner", pack.enquiry!.message(practice));
+    return finish();
+  }
+
   if (flow?.name === "booking_request") {
     if (flow.slots.confirm === "yes") {
       const { offered: _offered, ...details } = flow.slots;
@@ -439,15 +469,19 @@ export async function runExecutor(ctx: TurnContext, deps: ExecutorDeps, emit: Em
         const invalid = invalidSlot !== null && invalidSlot === step && (step === SLOT_STEP || Boolean(def.invalid[step]));
         const context = def.contextQuery[step];
         if (context && !invalid && !rebook) await answer(context, { quiet: true });
-        const ask = step === SLOT_STEP ? pack.online!.slotPrompt(flow.slots) : bookingPrompt(def, step, flow.slots);
+        const choosing = step === SLOT_STEP && Boolean(flow.slots.slot_choice);
+        const ask = choosing ? pack.online!.moreTimes : step === SLOT_STEP ? pack.online!.slotPrompt(flow.slots) : bookingPrompt(def, step, flow.slots);
         const prompt = invalid
           ? step === SLOT_STEP
-            ? pack.online!.slotInvalid
+            ? choosing
+              ? pack.online!.moreTimes
+              : pack.online!.slotInvalid
             : def.invalid[step]!
           : rebook && step === "confirm"
             ? def.ready
             : `${rebook ? `${def.continue} ` : ""}${startedLead ? `${startedLead} ` : ""}${ask}`;
-        out.template("flow", prompt, [], step === SLOT_STEP ? timeOptions(flow) : bookingOptions(def, step));
+        const options = choosing ? TIME_CHOICES : step === SLOT_STEP ? timeOptions(flow) : bookingOptions(def, step);
+        out.template("flow", prompt, [], options);
         if (result.answered === 0 || flowTouched) result.act = "flow";
       }
       result.topic ??= "flow:booking_request";
@@ -474,13 +508,13 @@ export async function runExecutor(ctx: TurnContext, deps: ExecutorDeps, emit: Em
   }
   return finish();
 
-  function doHandover(reason: HandoverReason, trigger: "precheck" | "planner" | "visitor_button") {
+  function doHandover(reason: HandoverReason, trigger: "precheck" | "planner" | "visitor_button", message = pack.handoverMessage(practice, reason)) {
     const sources = T.isUrgentReason(reason)
       ? bundle.handoverSources.urgent
       : reason === "clinical_advice"
         ? bundle.handoverSources.clinical
         : [];
-    out.template("handover", pack.handoverMessage(practice, reason), sources);
+    out.template("handover", message, sources);
     const details =
       trigger === "visitor_button"
         ? null
@@ -497,6 +531,14 @@ export async function runExecutor(ctx: TurnContext, deps: ExecutorDeps, emit: Em
     result.flow = contact.flow;
     result.act = "handover";
     result.topic = `handover:${reason}`;
+  }
+
+  /** A service the content doesn't cover goes to the team with contact details; the handover is made once the commands have run. */
+  function asksTeamEnquiry(query: string) {
+    if (!pack.enquiry || !(pack.enquiry.pattern.test(query) || pack.enquiry.pattern.test(text))) return false;
+    trace.guardrails.push({ rule: "enquiry_handover", result: "hit", detail: query });
+    enquiry = true;
+    return true;
   }
 
   /** One gentle booking offer per conversation, and none once a booking or the team is involved. */
@@ -564,7 +606,7 @@ export async function runExecutor(ctx: TurnContext, deps: ExecutorDeps, emit: Em
       const times = await system.availability({
         service: f.slots.service ?? "",
         stylist: f.slots.stylist ?? null,
-        earliest: new Date(now() + hours * 3_600_000),
+        earliest: new Date(Math.max(now() + hours * 3_600_000, f.slots.times_after ? Date.parse(f.slots.times_after) + 60_000 : 0)),
         preferredTime: f.slots.preferred_time ?? null,
         partOfDay: f.slots.time_of_day ?? null,
         timeZone: TIME_ZONE,
@@ -621,6 +663,7 @@ export async function runExecutor(ctx: TurnContext, deps: ExecutorDeps, emit: Em
         result: "hit",
         detail: `${query}: top ${top ? round(top.score) : "none"} < ${threshold}`,
       });
+      if (asksTeamEnquiry(query)) return;
       result.fallbacks += 1;
       out.template("fallback", T.dontKnow(practice), [], T.ASK_TEAM_OPTIONS);
       if (result.act === "answered") result.act = "fallback";
@@ -701,6 +744,7 @@ export async function runExecutor(ctx: TurnContext, deps: ExecutorDeps, emit: Em
       out.template("clarify", T.TOPIC_LEAD, [], topics);
       return;
     }
+    if (blocked === 0 && asksTeamEnquiry(query)) return;
     result.fallbacks += 1;
     if (blocked > 0) {
       trace.guardrails.push({ rule: "grounding", result: "blocked", detail: `all ${blocked} sentence(s) failed checks` });
@@ -749,6 +793,24 @@ function timeOptions(flow: FlowState): string[] {
 }
 
 export const NONE_OF_THESE = "None of these suit me";
+
+export const MORE_TIMES = "Show more times";
+export const OTHER_DAY = "A different day";
+export const CALL_ME = "Ask the team to call me";
+const TIME_CHOICES = [MORE_TIMES, OTHER_DAY, CALL_ME];
+
+/** After "none of these suit me": more times, another day (perhaps already named), or a call-back. */
+export function readTimeChoice(text: string): { kind: "more" } | { kind: "call" } | { kind: "day"; value: string | null } | null {
+  const t = text.trim();
+  if (!t) return null;
+  if (t === CALL_ME || /\b(?:call|ring|phone) me\b|\bcall ?back\b|\bthe team\b/i.test(t)) return { kind: "call" };
+  if (t === OTHER_DAY || /^(?:an? )?(?:different|another|other) (?:day|date|time)s?[.!]?$/i.test(t)) return { kind: "day", value: null };
+  if (wantedDays(t) || /\b(?:next week|week after|weekend)\b/i.test(t) || (PART_OF_DAY.test(t) && !/\bmore\b/i.test(t))) {
+    return { kind: "day", value: t.replace(/\b(?:instead|please|then|how about|what about|maybe)\b/gi, "").replace(/\s+/g, " ").replace(/^[\s,?]+|[\s,?.!]+$/g, "") || t };
+  }
+  if (t === MORE_TIMES || /\b(?:more|later|next|others?|any (?:other|more))\b/i.test(t)) return { kind: "more" };
+  return null;
+}
 
 /** "1", "the second one", "last": a choice by position, when the visitor doesn't repeat the time. */
 const ORDINALS = [

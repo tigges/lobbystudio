@@ -1,0 +1,387 @@
+[
+  {
+    "name": "Senior stylist price, then Saturdays, then booking",
+    "source": "labels on turns 56, 57",
+    "turns": [
+      {
+        "say": "How much is a cut and blow-dry with a senior stylist?",
+        "expect": {
+          "contains": [
+            "£75",
+            "senior stylist"
+          ],
+          "notContains": [
+            "£45",
+            "£95"
+          ],
+          "kinds": [
+            "suggest"
+          ],
+          "judge": "Reviewed as wrong question: question is about senior stylist. no need to list the entire pack and confuse the client. It had replied: \"Cut and blow-dry: graduate stylist £45; stylist £62; senior stylist £75; creative director £95. Blow-dry: graduate stylist £32; stylist £38; senior stylist £45; creative director £55. If you'd like to come in, I can help you book an appointment.\""
+        }
+      },
+      {
+        "say": "Are you open on Saturdays?",
+        "expect": {
+          "contains": [
+            "9am",
+            "on Saturdays for a cut & style with a senior stylist"
+          ],
+          "kinds": [
+            "suggest"
+          ],
+          "judge": "Reviewed as missed next step: no follow up on client needs and possible booking. It had replied: \"Saturday: 9am to 6pm.\""
+        }
+      },
+      {
+        "say": "Yes please",
+        "expect": {
+          "contains": [
+            "Lovely, a cut & style with a senior stylist on Saturdays"
+          ],
+          "step": "time_of_day"
+        }
+      }
+    ]
+  },
+  {
+    "name": "Patch test for a toner",
+    "source": "labels on turns 71",
+    "turns": [
+      {
+        "say": "Do I need a patch test for a toner?",
+        "expect": {
+          "contains": [
+            "48 hours",
+            "walk in",
+            "book your toner"
+          ],
+          "kinds": [
+            "suggest"
+          ],
+          "handover": false,
+          "judge": "Reviewed as missed next step: patch test also need an appointment. follow up missing. It had replied: \"We need a patch test at least 48 hours before any colour service, including root colour, toners, highlights and balayage. If you've had a patch test with us in the last 6 months, you don't need a new one unless you've had a reaction to anything since. If you'd like to come in, I can help you book an appointment.\""
+        }
+      }
+    ]
+  },
+  {
+    "name": "Wedding hair trials go to the team",
+    "source": "labels on turns 72",
+    "turns": [
+      {
+        "say": "Do you do wedding hair trials?",
+        "expect": {
+          "kinds": [
+            "handover"
+          ],
+          "contains": [
+            "what's your name"
+          ],
+          "step": "name",
+          "judge": "Reviewed as missed next step: should have followed up with name and contact at least. It had replied: \"I'm afraid I can't answer that one, and I'd rather not guess. Shall I pass your question to the team? Or call us on 020 7946 0588.\""
+        }
+      },
+      {
+        "say": "Mia Tanaka",
+        "expect": {
+          "step": "phone"
+        }
+      }
+    ]
+  },
+  {
+    "name": "Colour offers, then a dog",
+    "source": "labels on turns 82, 83",
+    "turns": [
+      {
+        "say": "Do you have any offers on colour?",
+        "expect": {
+          "contains": [
+            "20%",
+            "Tuesday or Wednesday time"
+          ],
+          "kinds": [
+            "suggest"
+          ],
+          "judge": "Reviewed as missed next step: no follow up on client needs and possible booking. It had replied: \"Every Tuesday and Wednesday, get 20% off full head colour and balayage with any stylist. Mention the offer when you book.\""
+        }
+      },
+      {
+        "say": "and can I bring my dog?",
+        "expect": {
+          "contains": [
+            "dogs"
+          ],
+          "judge": "Reviewed as missed next step: no follow up on client needs and possible booking. It had replied: \"Well-behaved dogs are welcome on a lead, as long as other clients are happy. If you'd like to come in, I can help you book an appointment.\""
+        }
+      }
+    ]
+  },
+  {
+    "name": "How long balayage takes",
+    "source": "labels on turns 84",
+    "turns": [
+      {
+        "say": "How long does balayage take?",
+        "expect": {
+          "contains": [
+            "three hours",
+            "balayage?"
+          ],
+          "notContains": [
+            "two hours"
+          ],
+          "kinds": [
+            "suggest"
+          ],
+          "judge": "Reviewed as missed next step: no follow up on client needs and possible booking. It had replied: \"Balayage and full head foils usually take three hours, including a blow-dry. A full head colour takes about two hours, and balayage or full head foils about three hours.\""
+        }
+      }
+    ]
+  },
+  {
+    "name": "Walk-ins",
+    "source": "labels on turns 85",
+    "turns": [
+      {
+        "say": "Do you take walk-ins?",
+        "expect": {
+          "contains": [
+            "Tuesday to Thursday mornings",
+            "book you a time instead"
+          ],
+          "kinds": [
+            "suggest"
+          ],
+          "judge": "Reviewed as missed next step: no follow up on client needs and possible booking. It had replied: \"Walk-ins are most likely on Tuesday to Thursday mornings.\""
+        }
+      }
+    ]
+  },
+  {
+    "name": "Pregnancy question goes to the team gently",
+    "source": "labels on turns 81",
+    "turns": [
+      {
+        "say": "is it safe to bleach my hair while pregnant?",
+        "expect": {
+          "handover": true,
+          "notContains": [
+            "medical advice"
+          ],
+          "judge": "Reviewed as unnatural. It had replied: \"I can't give medical advice in the chat, so I've passed your question to the salon team. They'll reply here during opening hours, or you can call us on 020 7946 0588. So the team can get back to you, what's your name?\""
+        }
+      }
+    ]
+  },
+  {
+    "name": "Booking: none of the times suit, more times, booked",
+    "source": "labels on turns 74, 75, 76, 77, 78, 79, 80",
+    "turns": [
+      {
+        "action": "book",
+        "expect": {
+          "step": "service",
+          "options": [
+            "Cut & style"
+          ]
+        }
+      },
+      {
+        "say": "Cut & style",
+        "expect": {
+          "step": "stylist"
+        }
+      },
+      {
+        "say": "Stylist",
+        "expect": {
+          "step": "preferred_time"
+        }
+      },
+      {
+        "say": "Thursday evening",
+        "expect": {
+          "step": "slot",
+          "options": [
+            "None of these suit me"
+          ]
+        }
+      },
+      {
+        "say": "None of these suit me",
+        "expect": {
+          "step": "slot",
+          "options": [
+            "Show more times",
+            "A different day",
+            "Ask the team to call me"
+          ],
+          "judge": "Reviewed as wrong question: assistant should offer some more availabilities. It had replied: \"Thanks. What name should the booking be under?\""
+        }
+      },
+      {
+        "say": "Show more times",
+        "expect": {
+          "step": "slot",
+          "contains": [
+            "Here are the next free times"
+          ]
+        }
+      },
+      {
+        "say": "the first one",
+        "expect": {
+          "step": "name"
+        }
+      },
+      {
+        "say": "Mia Tanaka",
+        "expect": {
+          "step": "phone"
+        }
+      },
+      {
+        "say": "07700 900321",
+        "expect": {
+          "step": "confirm",
+          "contains": [
+            "Shall I book this in?"
+          ]
+        }
+      },
+      {
+        "say": "yes",
+        "expect": {
+          "step": null,
+          "contains": [
+            "You're booked in"
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "name": "Booking: cut with a senior stylist, as labelled good",
+    "source": "labels on turns 86, 87, 88, 89, 90, 91, 92, 93",
+    "turns": [
+      {
+        "action": "book",
+        "expect": {
+          "step": "service",
+          "judge": "Reviewed as quick replies: Hi, I'm the Mikan Hair Studio assistant. How can I help you today? // from here on is overkill for intro -> I can help with prices, patch tests, opening hours and booking. why would I ever lead with such a question? -> If you've had a reaction to a treatment, I'll pass you straight to the team.. It had replied: \"Lovely. What would you like to book? Pick one below or tell me in your own words.\""
+        }
+      },
+      {
+        "say": "Cut & style",
+        "expect": {
+          "step": "stylist"
+        }
+      },
+      {
+        "say": "Senior stylist",
+        "expect": {
+          "step": "preferred_time"
+        }
+      },
+      {
+        "say": "wednesday 10am",
+        "expect": {
+          "step": "slot",
+          "contains": [
+            "with a senior stylist"
+          ]
+        }
+      },
+      {
+        "say": "the first one",
+        "expect": {
+          "step": "name"
+        }
+      },
+      {
+        "say": "Mia Tanaka",
+        "expect": {
+          "step": "phone"
+        }
+      },
+      {
+        "say": "07700 900321",
+        "expect": {
+          "step": "confirm"
+        }
+      },
+      {
+        "say": "Yes, please",
+        "expect": {
+          "step": null,
+          "contains": [
+            "You're booked in",
+            "020 7946 0588"
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "name": "Opening hours on Saturdays",
+    "turns": [
+      {
+        "say": "Are you open on Saturdays?",
+        "expect": {
+          "contains": [
+            "9am"
+          ],
+          "notKinds": [
+            "fallback"
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "name": "Nearest station",
+    "source": "open item: scores just under the threshold",
+    "turns": [
+      {
+        "say": "What is the nearest station?",
+        "expect": {
+          "contains": [
+            "Turnham Green"
+          ],
+          "notKinds": [
+            "fallback"
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "name": "A reaction goes straight to the team",
+    "turns": [
+      {
+        "say": "my scalp is burning since my colour yesterday",
+        "expect": {
+          "handover": true,
+          "contains": [
+            "020 7946 0588"
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "name": "Short greeting reply",
+    "turns": [
+      {
+        "say": "hello",
+        "expect": {
+          "notKinds": [
+            "fallback"
+          ]
+        }
+      }
+    ]
+  }
+]
