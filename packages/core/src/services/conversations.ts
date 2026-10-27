@@ -155,6 +155,7 @@ export async function listHandovers(tenantId: string) {
       createdAt: handovers.createdAt,
       repliedAt: handovers.repliedAt,
       contact: handovers.contact,
+      firstMessage: sql<string | null>`(select m.text from ${messages} m where m.conversation_id = "handovers"."conversation_id" and m.role = 'visitor' order by m.id limit 1)`,
       lastMessage: sql<string | null>`(select m.text from ${messages} m where m.conversation_id = "handovers"."conversation_id" and m.role = 'visitor' order by m.id desc limit 1)`,
       conversationStatus: sql<string>`(select c.status from ${conversations} c where c.id = "handovers"."conversation_id")`,
       lastRole: sql<string | null>`(select m.role from ${messages} m where m.conversation_id = "handovers"."conversation_id" and m.role <> 'system' order by m.id desc limit 1)`,
@@ -168,6 +169,7 @@ export async function listHandovers(tenantId: string) {
     const values = await vaultValues(tenantId, r.conversationId);
     out.push({
       ...r,
+      firstMessage: r.firstMessage ? detokenise(r.firstMessage, values) : null,
       lastMessage: r.lastMessage ? detokenise(r.lastMessage, values) : null,
       contact: Object.fromEntries(Object.entries(r.contact).map(([k, v]) => [k, detokenise(v, values)])),
     });

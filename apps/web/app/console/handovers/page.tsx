@@ -46,7 +46,12 @@ export default async function HandoversPage() {
               <span className={`w-36 shrink-0 rounded-full px-2.5 py-0.5 text-center text-xs font-medium ${REASON_STYLE[h.reason] ?? "bg-slate-100 text-slate-700"}`}>
                 {label(h.reason)}
               </span>
-              <span className="min-w-0 flex-1 truncate text-sm text-slate-800">{h.lastMessage ?? "—"}</span>
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-sm text-slate-800">{h.firstMessage ?? "—"}</span>
+                {h.lastMessage && h.lastMessage !== h.firstMessage && (
+                  <span className="block truncate text-xs text-slate-500">Latest: {h.lastMessage}</span>
+                )}
+              </span>
               <span className="w-48 shrink-0 truncate text-xs text-slate-600">
                 {h.contact.name || h.contact.phone ? [h.contact.name, h.contact.phone].filter(Boolean).join(" · ") : <span className="text-slate-400">no contact yet</span>}
               </span>
