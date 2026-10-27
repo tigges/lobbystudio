@@ -59,7 +59,12 @@ export default async function ConversationsPage({ searchParams }: { searchParams
   const rows = scoped.filter((r) => !params.outcome || (params.outcome === "none" ? !r.outcome : r.outcome === params.outcome));
   const counts = new Map<string, number>();
   for (const r of scoped) counts.set(r.outcome ?? "none", (counts.get(r.outcome ?? "none") ?? 0) + 1);
-  const filtered = Boolean(params.outcome || params.had || params.version || params.review);
+  const activeFilters = [
+    review !== "all" && (REVIEW_STATES.find((r) => r.key === review)?.title ?? review).toLowerCase(),
+    params.outcome && (params.outcome === "none" ? "no outcome yet" : label(params.outcome)),
+    had && `had ${had.title.toLowerCase()}`,
+    params.version && `assistant v${params.version}`,
+  ].filter((f): f is string => Boolean(f));
 
   return (
     <div>
@@ -69,12 +74,15 @@ export default async function ConversationsPage({ searchParams }: { searchParams
         <span className="text-sm text-slate-500">
           {rows.length} of {all.length}
         </span>
-        {filtered && (
-          <Link href="/console/conversations" className="text-sm text-harbour-700 hover:underline">
-            Clear filters
-          </Link>
-        )}
       </div>
+      {rows.length < all.length && (
+        <p className="mb-4 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900 ring-1 ring-amber-200">
+          Showing {rows.length} of {all.length} conversations: {activeFilters.join(", ")}.{" "}
+          <Link href="/console/conversations?review=all" className="font-medium underline">
+            Show all {all.length}
+          </Link>
+        </p>
+      )}
       <div className="mb-4 flex flex-wrap items-center gap-2">
         {[...REVIEW_STATES, { key: "all", title: "All" }].map((st) => {
           const on = review === st.key;
