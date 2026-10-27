@@ -11,7 +11,7 @@ describe("hard rules", () => {
     ["my tooth really hurts", "pain_or_symptoms", /how bad is the pain/],
     ["my face is swollen", "pain_or_symptoms", /how bad is the pain/],
     ["it's an emergency", "emergency", /how bad is the pain/],
-    ["what painkiller should I take?", "clinical_advice", /what's your name/],
+    ["what painkiller should I take?", "clinical_advice", /best phone number/],
   ])("hands over %j without calling the planner", async (text, reason, nextQuestion) => {
     const { deps, calls } = fakeDeps({ commands: [{ cmd: "answer_from_knowledge", query: text }] });
     const r = await runExecutor(ctx({ visitorText: text }), deps);
@@ -308,16 +308,17 @@ describe("contact details after a handover", () => {
   const handedOver = (flow: { step: string; slots: Record<string, string> }) =>
     ctx({ status: "handed_over", flow: { name: "handover", ...flow } });
 
-  it("asks for a name, then a phone number, then confirms", async () => {
+  it("asks for a phone number first, then a name, then confirms", async () => {
     const { deps } = fakeDeps();
     const start = await runExecutor(ctx({ visitorText: null, action: "handover" }), deps);
-    expect(start.flow).toMatchObject({ name: "handover", step: "name" });
+    expect(start.flow).toMatchObject({ name: "handover", step: "phone" });
+    expect(start.segments[1]!.text).toMatch(/In case you leave the chat/);
 
-    const named = await runExecutor({ ...handedOver(start.flow!), visitorText: "‹NAME_1›" }, deps);
-    expect(named.segments[0]!.text).toMatch(/phone number/);
-    expect(named.contact).toEqual({ name: "‹NAME_1›" });
+    const phoned = await runExecutor({ ...handedOver(start.flow!), visitorText: "07700 900123" }, deps);
+    expect(phoned.segments[0]!.text).toMatch(/your name/);
+    expect(phoned.contact).toEqual({ phone: "07700 900123" });
 
-    const done = await runExecutor({ ...handedOver(named.flow!), visitorText: "07700 900123" }, deps);
+    const done = await runExecutor({ ...handedOver(phoned.flow!), visitorText: "‹NAME_1›" }, deps);
     expect(done.flow?.step).toBe("waiting");
     expect(done.contact).toEqual({ name: "‹NAME_1›", phone: "07700 900123" });
     expect(done.segments[0]!.text).toMatch(/call you on 07700 900123/);
@@ -343,11 +344,11 @@ describe("contact details after a handover", () => {
     expect(declined.flow?.step).toBe("waiting");
 
     const message = await runExecutor(
-      { ...handedOver({ step: "name", slots: {} }), visitorText: "it started hurting last night after dinner" },
+      { ...handedOver({ step: "phone", slots: {} }), visitorText: "it started hurting last night after dinner" },
       deps,
     );
     expect(message.segments).toHaveLength(0);
-    expect(message.flow?.step).toBe("name");
+    expect(message.flow?.step).toBe("phone");
   });
 });
 
@@ -570,7 +571,7 @@ describe("next steps from labelled turns", () => {
       deps,
     );
     expect(r.segments[0]!.text).toMatch(/call 999/);
-    expect(r.flow?.step).toBe("name");
+    expect(r.flow?.step).toBe("phone");
   });
 
   it("steers back after an out-of-scope question", async () => {

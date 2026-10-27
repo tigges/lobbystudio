@@ -264,7 +264,7 @@ describe("from the second salon label export", () => {
     expect(r.handover).toEqual({ reason: "visitor_request", trigger: "planner" });
     expect(r.segments.map((s) => s.text)).toEqual([
       "That's one for the team, so I've passed your question on. They'll reply here during opening hours, or you can call us on 020 7946 0588.",
-      "So the team can get back to you, what's your name?",
+      "In case you leave the chat, what's the best phone number for the team to reach you on?",
     ]);
     expect(r.fallbacks).toBe(0);
   });

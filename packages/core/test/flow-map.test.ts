@@ -58,12 +58,12 @@ describe("flow map", () => {
 
   it("splits a booking that turns into a handover into two runs", () => {
     const runs = flowRuns(
-      ledger(booking("reason"), booking("patient"), handover("details"), handover("name"), handover("phone"), handover("waiting")),
+      ledger(booking("reason"), booking("patient"), handover("details"), handover("phone"), handover("name"), handover("waiting")),
       true,
     );
     expect(runs.map((r) => r.flow)).toEqual(["booking_request", "handover"]);
     expect(runs[0]!.end).toMatchObject({ kind: "passed_to_team", turn: 3 });
-    expect(runs[1]!.steps.map((s) => s.key)).toEqual(["details", "name", "phone", "waiting"]);
+    expect(runs[1]!.steps.map((s) => s.key)).toEqual(["details", "phone", "name", "waiting"]);
     expect(runs[1]!.end.kind).toBe("team_replied");
   });
 
