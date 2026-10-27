@@ -261,6 +261,7 @@ class Widget {
         visitorId: visitorId(),
         conversationId: localStorage.getItem(`${STORE}:conversation`),
         page: location.pathname,
+        test: IN_CONSOLE,
       });
     } catch {
       this.renderMessage({ role: "system", kind: "error", text: "The chat is unavailable right now. Please phone us.", sources: [], options: [], feedback: null, authorName: null });

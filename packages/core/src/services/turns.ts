@@ -90,6 +90,7 @@ export async function startSession(opts: {
       conv.status !== "closed" &&
       now.getTime() - conv.lastActivityAt.getTime() < RESUME_WITHIN_MS
     ) {
+      if (opts.isDemo && !conv.isDemo) await db.update(conversations).set({ isDemo: true }).where(eq(conversations.id, conv.id));
       const bundle = await loadBundle(conv.versionId);
       return {
         conversationId: conv.id,

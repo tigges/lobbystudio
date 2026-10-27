@@ -193,6 +193,7 @@ export const conversations = pgTable(
     lastVisitorAt: ts("last_visitor_at"),
     lastHumanAt: ts("last_human_at"),
     handedOverAt: ts("handed_over_at"),
+    /** A test chat: started from the console's Test chat, or marked as a test by staff. Hidden from the team's lists. */
     isDemo: boolean("is_demo").notNull().default(false),
     /** Set by the admin once the conversation has been read, with or without labels. */
     reviewedAt: ts("reviewed_at"),

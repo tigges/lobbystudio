@@ -18,6 +18,7 @@ export async function POST(req: Request) {
     visitorId,
     conversationId: isUuid(body.conversationId) ? body.conversationId : null,
     page: pageSlug(body.page),
+    isDemo: body.test === true,
   });
   return json({ ...session, build: buildInfo().commit });
 }

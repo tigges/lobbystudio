@@ -3,7 +3,8 @@ import { BusinessSwitcher } from "@/app/business-switcher";
 import { brandFor, paletteStyle } from "@/lib/brands";
 import { buildLabel } from "@/lib/build";
 import { currentTenant, switcherOptions } from "@/lib/business";
-import { TestChatToggle } from "./ui";
+import { inboxCounts } from "@dental-bot/core";
+import { AlertsButton, InboxBadge, TestChatToggle } from "./ui";
 
 export const dynamic = "force-dynamic";
 
@@ -13,7 +14,7 @@ const NAV = [
   {
     group: "Team",
     links: [
-      { href: "/console/handovers", label: "Handovers" },
+      { href: "/console/handovers", label: "Inbox" },
       { href: "/console/help", label: "Help" },
     ],
   },
@@ -29,6 +30,7 @@ const NAV = [
 export default async function ConsoleLayout({ children }: { children: React.ReactNode }) {
   const tenant = await currentTenant();
   const brand = brandFor(tenant);
+  const counts = await inboxCounts(tenant);
   return (
     <div className="min-h-screen bg-slate-50" style={paletteStyle(brand)}>
       <header className="border-b border-slate-200 bg-white">
@@ -47,8 +49,9 @@ export default async function ConsoleLayout({ children }: { children: React.Reac
                   {g.group}
                 </span>
                 {g.links.map((n) => (
-                  <Link key={n.href} href={n.href} className="rounded-lg px-2.5 py-1 text-slate-600 hover:bg-white">
+                  <Link key={n.href} href={n.href} className="flex items-center rounded-lg px-2.5 py-1 text-slate-600 hover:bg-white">
                     {n.label}
+                    {n.href === "/console/handovers" && <InboxBadge key={tenant} initial={counts} />}
                   </Link>
                 ))}
               </div>
@@ -56,6 +59,7 @@ export default async function ConsoleLayout({ children }: { children: React.Reac
           </nav>
           <div className="ml-auto flex items-center gap-3">
             <span className="text-xs text-slate-400">{buildLabel()}</span>
+            <AlertsButton />
             <TestChatToggle tenant={tenant} accent={brand.accent} />
             <Link href="/" className="text-sm text-slate-500 hover:text-slate-800">
               View site

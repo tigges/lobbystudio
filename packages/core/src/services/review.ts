@@ -33,6 +33,13 @@ export async function setTurnLabel(opts: { tenantId: string; turnId: number; lab
   await setConversationReviewed({ tenantId: opts.tenantId, conversationId: turn.conversationId, reviewed: true, keepEarlier: true });
 }
 
+export async function setConversationTest(opts: { tenantId: string; conversationId: string; test: boolean }) {
+  await getDb()
+    .update(conversations)
+    .set({ isDemo: opts.test })
+    .where(and(eq(conversations.tenantId, opts.tenantId), eq(conversations.id, opts.conversationId)));
+}
+
 export async function setConversationReviewed(opts: { tenantId: string; conversationId: string; reviewed: boolean; keepEarlier?: boolean }) {
   await getDb()
     .update(conversations)
