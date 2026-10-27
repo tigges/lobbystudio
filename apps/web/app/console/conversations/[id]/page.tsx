@@ -1,12 +1,12 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { businessById, conversationDetail, flowRuns, listConversations, packFor, profileLine, REVIEW_STATES, reviewState } from "@dental-bot/core";
-import { reviewedAction } from "../../actions";
+import { reviewedAction, testChatAction } from "../../actions";
 import { label, OUTCOME_STYLE, when } from "@/lib/format";
 import { currentTenant } from "@/lib/business";
 import { ActionedForm, LabelChip, LabelForm } from "../../labels";
 import { Transcript } from "../../transcript";
-import { AdminNote } from "../../ui";
+import { AdminNote, TestChatForm } from "../../ui";
 import { DecisionPath, FlowMap } from "./decision";
 
 export const metadata = { title: "Conversation" };
@@ -52,11 +52,11 @@ export default async function ConversationPage({
     openLabels: labelRows.filter((l) => l.label !== "good" && !l.actionedAt).length,
     actionedLabels: labelRows.filter((l) => l.actionedAt).length,
   });
-  const next = (await listConversations(tenant, 300)).find((r) => r.id !== c.id && reviewState(r) === "to_review");
+  const next = (await listConversations(tenant, 300)).find((r) => r.id !== c.id && !r.isTest && reviewState(r) === "to_review");
 
   return (
     <div className="space-y-6">
-      <AdminNote>The turn ledger and labels are for the platform owner. The practice team works from Handovers.</AdminNote>
+      <AdminNote>The turn ledger and labels are for the platform owner. The practice team works from the Inbox.</AdminNote>
       <div className="flex flex-wrap items-center gap-3">
         <Link href="/console/conversations" className="text-sm text-slate-500 hover:text-slate-800">
           ← Conversations
@@ -72,6 +72,7 @@ export default async function ConversationPage({
           v{versionNumber} · {label(c.status)} · topic {c.topic ?? "—"} · rating {c.rating ?? "—"} · {turns.length} turns · $
           {totalCost.toFixed(4)}
         </span>
+        <TestChatForm conversationId={c.id} isTest={c.isTest} action={testChatAction} />
         {c.status === "handed_over" && (
           <Link href={`/console/handovers/${c.id}`} className="text-sm text-harbour-700 hover:underline">
             Reply →

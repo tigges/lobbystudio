@@ -29,10 +29,34 @@ const script = document.currentScript as HTMLScriptElement | null;
 const BASE = script ? new URL(script.src).origin : location.origin;
 const TENANT = script?.dataset.tenant ?? "default";
 const ACCENT = script?.dataset.accent;
+/** Loaded by the console's "Test chat": shows the serving version, which visitors don't need. */
+const IN_CONSOLE = script?.dataset.consoleWidget === "1";
 const STORE = `dental-bot:${TENANT}`;
 const POLL_MS = 4000;
 const IDLE_POLL_MS = 15000;
 const RATEABLE = new Set(["answer", "fallback", "cannot_handle", "handover"]);
+/** The chat rating appears once the visitor has had a real exchange, not on the greeting. */
+const RATE_AFTER = 2;
+
+const PHONE_RE = /(?:\+44\s?|0)(?:\d[\s-]?){9,10}\d/;
+const LINK_RE = new RegExp(`(https?://[^\\s]+[^\\s.,;:!?)])|([\\w.+-]+@[\\w-]+(?:\\.[\\w-]+)+)|(${PHONE_RE.source})`, "g");
+
+/** Bot text as nodes: bullets tidied, and phone numbers, emails and web addresses made tappable. */
+function formatted(text: string): Node[] {
+  const tidy = text.replace(/^[ \t]*[-*][ \t]+/gm, "• ");
+  const nodes: Node[] = [];
+  let at = 0;
+  for (const m of tidy.matchAll(LINK_RE)) {
+    if (m.index > at) nodes.push(document.createTextNode(tidy.slice(at, m.index)));
+    const [whole, url, email] = m;
+    const href = url ? url : email ? `mailto:${email}` : `tel:${whole.replace(/[\s-]/g, "")}`;
+    const a = el("a", { href, ...(url ? { target: "_blank", rel: "noopener" } : {}) }, whole);
+    nodes.push(a);
+    at = m.index + whole.length;
+  }
+  if (at < tidy.length) nodes.push(document.createTextNode(tidy.slice(at)));
+  return nodes;
+}
 
 const ICON_CHAT =
   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/></svg>';
@@ -87,6 +111,10 @@ class Widget {
   private footerEl!: HTMLElement;
   private launcher!: HTMLButtonElement;
   private stars!: HTMLDivElement;
+  private callEl!: HTMLElement;
+  private freshBtn!: HTMLButtonElement;
+  private typing: HTMLDivElement | null = null;
+  private visitorTurns = 0;
   private session: Session | null = null;
   private busy = false;
   private lastId = 0;
@@ -123,8 +151,10 @@ class Widget {
     this.subtitleEl = el("span", {}, DEFAULT_LABELS.assistant);
     title.append(this.titleEl, this.subtitleEl);
     this.versionEl = el("span", { class: "version", title: "Serving version" }, "v–");
+    this.versionEl.hidden = !IN_CONSOLE;
     const fresh = el("button", { class: "text-btn", title: "Start a new conversation" }, "New chat");
-    fresh.addEventListener("click", () => void this.newChat());
+    this.freshBtn = fresh;
+    fresh.addEventListener("click", () => this.confirmNewChat());
     const close = el("button", { class: "icon-btn", "aria-label": "Close chat" }, "×");
     close.addEventListener("click", () => this.close());
     header.append(avatar, title, this.versionEl, fresh, close);
@@ -154,9 +184,10 @@ class Widget {
     });
 
     const footer = el("div", { class: "footer" });
-    this.footerEl = el("span", {}, DEFAULT_LABELS.footer);
-    footer.append(this.footerEl);
+    this.callEl = el("span", { class: "call" });
+    footer.append(this.callEl);
     this.stars = el("div", { class: "stars", "aria-label": "Rate this chat" }) as HTMLDivElement;
+    this.stars.hidden = true;
     this.stars.append(el("span", {}, "Rate chat"));
     for (let i = 1; i <= 5; i++) {
       const star = el("button", { class: "star", "aria-label": `${i} star${i > 1 ? "s" : ""}` }, "★");
@@ -164,8 +195,9 @@ class Widget {
       this.stars.append(star);
     }
     footer.append(this.stars);
+    this.footerEl = el("div", { class: "fine" }, DEFAULT_LABELS.footer);
 
-    this.panel.append(header, this.banner, this.log, composer, footer);
+    this.panel.append(header, this.banner, this.log, composer, footer, this.footerEl);
     this.root.appendChild(this.panel);
   }
 
@@ -184,6 +216,25 @@ class Widget {
     sessionStorage.removeItem(`${STORE}:open`);
   }
 
+  /** A second tap within a few seconds starts over, so one stray tap next to Close doesn't wipe the chat. */
+  private confirmNewChat() {
+    if (this.visitorTurns === 0 || this.freshBtn.dataset.confirm === "1") {
+      this.resetFreshBtn();
+      void this.newChat();
+      return;
+    }
+    this.freshBtn.dataset.confirm = "1";
+    this.freshBtn.textContent = "Start over?";
+    this.freshBtn.classList.add("confirm");
+    setTimeout(() => this.resetFreshBtn(), 4000);
+  }
+
+  private resetFreshBtn() {
+    delete this.freshBtn.dataset.confirm;
+    this.freshBtn.textContent = "New chat";
+    this.freshBtn.classList.remove("confirm");
+  }
+
   private async newChat() {
     if (this.busy) return;
     localStorage.removeItem(`${STORE}:conversation`);
@@ -197,6 +248,8 @@ class Widget {
     this.banner.hidden = true;
     this.stars.querySelectorAll(".star").forEach((s) => s.classList.remove("on"));
     (this.stars.firstChild as HTMLElement).textContent = "Rate chat";
+    this.visitorTurns = 0;
+    this.stars.hidden = true;
     await this.start();
     this.input.focus();
   }
@@ -208,6 +261,7 @@ class Widget {
         visitorId: visitorId(),
         conversationId: localStorage.getItem(`${STORE}:conversation`),
         page: location.pathname,
+        test: IN_CONSOLE,
       });
     } catch {
       this.renderMessage({ role: "system", kind: "error", text: "The chat is unavailable right now. Please phone us.", sources: [], options: [], feedback: null, authorName: null });
@@ -218,6 +272,8 @@ class Widget {
     const labels = this.labels();
     this.subtitleEl.textContent = labels.assistant;
     this.footerEl.textContent = labels.footer;
+    const phone = this.session.practice.phone;
+    this.callEl.replaceChildren("Prefer to call? ", el("a", { href: `tel:${phone.replace(/\s/g, "")}` }, phone));
     this.panel.setAttribute("aria-label", `Chat with ${this.session.practice.name}`);
     (this.root.querySelector(".avatar") as HTMLElement).textContent = this.session.practice.name
       .split(/\s+/)
@@ -227,6 +283,7 @@ class Widget {
     this.versionEl.textContent = `v${this.session.versionNumber}`;
     this.versionEl.title = `Assistant v${this.session.versionNumber}${this.session.build ? ` · build ${this.session.build}` : ""}`;
     this.log.replaceChildren();
+    this.visitorTurns = this.session.messages.filter((m) => m.role === "visitor").length;
     for (const m of this.session.messages) this.renderMessage(m);
     this.setStatus(this.session.status, this.session.booking);
   }
@@ -240,6 +297,7 @@ class Widget {
     this.session.status = status;
     if (booking !== undefined) this.session.booking = booking;
     const handed = status === "handed_over";
+    this.stars.hidden = !(handed || this.visitorTurns >= RATE_AFTER);
     this.banner.hidden = !handed;
     this.banner.textContent = handed ? `You're talking to the ${this.session.practice.name} team. They'll reply here.` : "";
     // Still poll, more slowly, while the assistant has the chat: the team can step back in at any time.
@@ -270,7 +328,9 @@ class Widget {
     this.log.querySelectorAll(".options").forEach((o) => o.remove());
     const row = el("div", { class: `row ${m.role}` }) as HTMLDivElement;
     if (m.role === "staff") row.append(el("div", { class: "author" }, `${m.authorName ?? "Team"} · ${this.session?.practice.name ?? ""}`));
-    const bubble = el("div", { class: "bubble" }, m.text) as HTMLDivElement;
+    const bubble = el("div", { class: "bubble" }) as HTMLDivElement;
+    if (m.role === "visitor") bubble.textContent = m.text;
+    else bubble.replaceChildren(...formatted(m.text));
     row.append(bubble);
     this.log.append(row);
     if (m.role === "bot") this.decorate(row, m);
@@ -348,6 +408,8 @@ class Widget {
     this.setBusy(true);
     const label = input.text ?? (input.action === "book" ? "Book an appointment" : this.labels().talk);
     this.renderMessage({ role: "visitor", kind: "text", text: label, sources: [], options: [], feedback: null, authorName: null });
+    this.visitorTurns++;
+    this.showTyping();
 
     const segments = new Map<string, { row: HTMLDivElement; bubble: HTMLDivElement; message: Message }>();
     try {
@@ -384,9 +446,26 @@ class Widget {
         authorName: null,
       });
     } finally {
+      this.hideTyping();
       for (const s of segments.values()) s.bubble.classList.remove("streaming");
       this.setBusy(false);
+      if (this.session) this.setStatus(this.session.status);
     }
+  }
+
+  private showTyping() {
+    this.hideTyping();
+    this.typing = el("div", { class: "row bot typing", "aria-label": "Typing" }) as HTMLDivElement;
+    const bubble = el("div", { class: "bubble" });
+    for (let i = 0; i < 3; i++) bubble.append(el("span", { class: "dot" }));
+    this.typing.append(bubble);
+    this.log.append(this.typing);
+    this.scroll();
+  }
+
+  private hideTyping() {
+    this.typing?.remove();
+    this.typing = null;
   }
 
   private handleEvent(
@@ -395,6 +474,7 @@ class Widget {
     segments: Map<string, { row: HTMLDivElement; bubble: HTMLDivElement; message: Message }>,
   ) {
     if (event === "segment_start") {
+      this.hideTyping();
       const message: Message = { role: "bot", kind: data.kind, text: "", sources: [], options: [], feedback: null, authorName: null };
       const { row, bubble } = this.renderMessage(message);
       bubble.classList.add("streaming");
@@ -409,6 +489,7 @@ class Widget {
       const s = segments.get(data.id);
       if (!s) return;
       s.bubble.classList.remove("streaming");
+      s.bubble.replaceChildren(...formatted(s.message.text));
       s.message.sources = data.sources;
       s.message.options = data.options;
       this.decorate(s.row, s.message);

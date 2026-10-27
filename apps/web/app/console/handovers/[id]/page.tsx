@@ -3,9 +3,9 @@ import { notFound } from "next/navigation";
 import { conversationDetail } from "@dental-bot/core";
 import { label, REASON_STYLE, when } from "@/lib/format";
 import { currentTenant } from "@/lib/business";
-import { contactAction, releaseAction, replyAction } from "../../actions";
+import { contactAction, releaseAction, replyAction, testChatAction } from "../../actions";
 import { Transcript } from "../../transcript";
-import { AutoRefresh } from "../../ui";
+import { AutoRefresh, TestChatForm } from "../../ui";
 
 export const metadata = { title: "Handover" };
 
@@ -35,7 +35,7 @@ export default async function HandoverPage({ params }: { params: Promise<{ id: s
       <section>
         <div className="mb-4 flex flex-wrap items-center gap-3">
           <Link href="/console/handovers" className="text-sm text-slate-500 hover:text-slate-800">
-            ← Handovers
+            ← Inbox
           </Link>
           {handover && (
             <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${REASON_STYLE[handover.reason] ?? "bg-slate-100 text-slate-700"}`}>
@@ -45,6 +45,7 @@ export default async function HandoverPage({ params }: { params: Promise<{ id: s
           <span className="text-sm text-slate-500">
             {label(conversation.status)} · started {when(conversation.startedAt)}
           </span>
+          <TestChatForm conversationId={conversation.id} isTest={conversation.isTest} action={testChatAction} />
         </div>
         <div className="rounded-2xl bg-slate-100/70 p-4">
           <Transcript messages={messages} />
@@ -80,7 +81,7 @@ export default async function HandoverPage({ params }: { params: Promise<{ id: s
                 {!hasSaved && <p className="mt-1 text-xs text-slate-500">Typed in the chat, not yet confirmed.</p>}
               </>
             ) : (
-              <p className="text-slate-500">The assistant has asked for a name and phone number; none given yet.</p>
+              <p className="text-slate-500">The assistant has asked for a phone number and name; none given yet.</p>
             )}
             {!closed && (
               <details className="mt-3">

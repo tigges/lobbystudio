@@ -2,13 +2,16 @@ import type { FlowState } from "@dental-bot/db/schema";
 import { tokenKind } from "../../pii/detect.ts";
 import { validateSlot } from "./booking-request.ts";
 
-/** After a handover the bot asks for these, so the team can always get back to the visitor. */
-export const CONTACT_SLOTS = ["name", "phone"] as const;
+/**
+ * After a handover the bot asks for these, so the team can always get back to the visitor.
+ * Phone comes first: visitors often leave after one question, and a number alone is enough to call back.
+ */
+export const CONTACT_SLOTS = ["phone", "name"] as const;
 export type ContactSlot = (typeof CONTACT_SLOTS)[number];
 
 const PROMPTS: Record<ContactSlot, string> = {
-  name: "So the team can get back to you, what's your name?",
-  phone: "And the best phone number to reach you on?",
+  phone: "In case you leave the chat, what's the best phone number for the team to reach you on?",
+  name: "Thanks. And your name, so the team knows who they're calling?",
 };
 
 const INVALID: Record<ContactSlot, string> = {

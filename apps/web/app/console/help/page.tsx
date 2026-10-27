@@ -6,8 +6,8 @@ export const metadata = { title: "Help" };
 const FLOW = [
   { title: "Visitor asks", body: "in the chat on the practice website" },
   { title: "Assistant answers", body: "or takes a booking request" },
-  { title: "Handover", body: "pain, clinical questions, complaints, or “talk to the practice”" },
-  { title: "You reply", body: "from the Handovers queue, in the same chat" },
+  { title: "Handover", body: "pain, clinical questions, complaints, or asking for the team" },
+  { title: "You reply", body: "from the Inbox, in the same chat" },
   { title: "Release", body: "hand the visitor back to the assistant" },
   { title: "Review (admin)", body: "Insights, labels and the turn ledger" },
 ];
@@ -19,18 +19,19 @@ const STEPS = [
     img: "01-visitor-asks-for-team.webp",
     body: [
       "Visitors chat with the assistant on the practice website. It answers from the practice's own pages and shows a source link under each answer.",
-      "The conversation comes to you when the visitor presses “Talk to the practice”, mentions pain, swelling, bleeding or an injury, asks for clinical advice, or raises a complaint or a question about their records. The visitor sees a banner saying the team will reply in the chat, and the assistant asks for their name and phone number so you can always get back to them. For pain or an injury it first asks how bad it is and whether there is swelling or bleeding; for a bill it asks what it's about and for the invoice number. Their answer appears under “What they told the assistant”. Once you reply, the assistant stops asking questions and leaves the conversation to you.",
+      "The conversation comes to you when the visitor asks to speak to someone, mentions pain, swelling, bleeding or an injury, asks for clinical advice, raises a complaint or a question about their records, or asks something the website doesn't cover. The visitor sees a banner saying the team will reply in the chat, and the assistant asks for their phone number first, in case they leave the chat, then their name. For pain or an injury it first asks how bad it is and whether there is swelling or bleeding; for a bill it asks what it's about and for the invoice number. Their answer appears under “What they told the assistant”. Once you reply, the assistant stops asking questions and leaves the conversation to you.",
     ],
   },
   {
     id: "queue",
-    title: "2. Check the Handovers queue",
+    title: "2. Check the Inbox",
     img: "02-handovers-queue.webp",
     body: [
-      "Handovers is the console's start page. Chats waiting for you are listed first: “visitor replied” means the visitor has answered you, and “open” means nobody has replied yet. The coloured label is the reason: red means pain or an emergency, so answer those first.",
-      "Booking requests sit underneath. Each one is a call-back request, not a confirmed appointment: phone the visitor, agree a time, and book it in your practice system.",
+      "The Inbox is the console's start page, and the number next to Inbox (also shown in the browser tab) is how many chats and booking requests are waiting. “Needs a reply” lists the chats for you: “visitor replied” means the visitor has answered you, and “needs a reply” means nobody has replied yet. “Waiting on visitor” are chats where you replied last; “Done” are chats handed back to the assistant or closed. The coloured label is the reason: red means pain or an emergency, so answer those first.",
+      "Press “Turn on alerts” at the top once, and the browser shows a notification when a new chat or booking request arrives, as long as the console is open in a tab.",
+      "Booking requests sit underneath. Each one is a call-back request, not a confirmed appointment: phone the visitor, agree a time, book it in your practice system, then press “Mark called” so the rest of the team knows it's done.",
       "For a business that books online, such as the demo salon, the list is called Bookings. “Booked” ones are already in the diary, with the booking system's reference; “Call back” ones are visitors for whom no offered time suited or the booking system couldn't be reached, so phone them as above.",
-      "The page refreshes itself every few seconds, so you can leave it open.",
+      "The page refreshes itself every few seconds, so you can leave it open. Chats started from the console's Test chat are marked as tests and hidden; use “Mark as test” on any other chat you started yourself.",
     ],
   },
   {
@@ -50,7 +51,7 @@ const STEPS = [
     img: "04-visitor-sees-reply.webp",
     body: [
       "Your message shows in the visitor's chat with your name. While a conversation is with the team, the assistant stays quiet apart from a short “the team has your message” note, so the visitor can reply to you directly.",
-      "Their answer appears at the bottom of the conversation on the handover page, which refreshes on its own, and the queue marks the chat “visitor replied”. Replying to a chat you have already released takes it back from the assistant.",
+      "Their answer appears at the bottom of the conversation on the handover page, which refreshes on its own, and the Inbox marks the chat “visitor replied”. Replying to a chat you have already released takes it back from the assistant.",
     ],
   },
   {
@@ -123,7 +124,7 @@ export default function HelpPage() {
         <div className="rounded-xl bg-white p-4 ring-1 ring-slate-200">
           <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400">Practice team</p>
           <p className="text-sm text-slate-700">
-            <strong>Handovers</strong>: chats waiting for you, booking requests to call back, and contact details. <strong>Help</strong>: this
+            <strong>Inbox</strong>: chats waiting for you, booking requests to call back, and contact details. <strong>Help</strong>: this
             page. That's all you need day to day.
           </p>
         </div>
@@ -220,7 +221,7 @@ export default function HelpPage() {
           </dl>
         </div>
         <p className="text-sm text-slate-600">
-          Questions about the assistant's answers? Open the conversation, check the turn ledger, and share the link with the person who looks after the assistant's set-up. <Link href="/console/handovers" className="text-harbour-700 hover:underline">Back to Handovers</Link>
+          Questions about the assistant's answers? Open the conversation, check the turn ledger, and share the link with the person who looks after the assistant's set-up. <Link href="/console/handovers" className="text-harbour-700 hover:underline">Back to the Inbox</Link>
         </p>
       </section>
     </div>

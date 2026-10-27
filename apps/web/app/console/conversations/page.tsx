@@ -8,7 +8,7 @@ import { AdminNote } from "../ui";
 export const metadata = { title: "Conversations" };
 
 type Row = Awaited<ReturnType<typeof listConversations>>[number];
-type Params = { outcome?: string; had?: string; review?: string; version?: string };
+type Params = { outcome?: string; had?: string; review?: string; version?: string; tests?: string };
 
 const HAD: { key: string; title: string; test: (r: Row) => boolean }[] = [
   { key: "handover", title: "handover", test: (r) => r.handedOver },
@@ -45,7 +45,9 @@ function Chip({ on, to, children }: { on: boolean; to: string; children: React.R
 
 export default async function ConversationsPage({ searchParams }: { searchParams: Promise<Params> }) {
   const params = await searchParams;
-  const all = await listConversations(await currentTenant(), 300);
+  const everything = await listConversations(await currentTenant(), 300);
+  const testCount = everything.filter((r) => r.isTest).length;
+  const all = params.tests ? everything : everything.filter((r) => !r.isTest);
   const versions = [...new Set(all.map((r) => r.versionNumber))].sort((a, b) => b - a);
 
   const had = HAD.find((h) => h.key === params.had);
@@ -78,7 +80,7 @@ export default async function ConversationsPage({ searchParams }: { searchParams
       {rows.length < all.length && (
         <p className="mb-4 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900 ring-1 ring-amber-200">
           Showing {rows.length} of {all.length} conversations: {activeFilters.join(", ")}.{" "}
-          <Link href="/console/conversations?review=all" className="font-medium underline">
+          <Link href={href({ tests: params.tests }, { review: "all" })} className="font-medium underline">
             Show all {all.length}
           </Link>
         </p>
@@ -126,6 +128,11 @@ export default async function ConversationsPage({ searchParams }: { searchParams
             {h.title}
           </Chip>
         ))}
+        {testCount > 0 && (
+          <Chip on={Boolean(params.tests)} to={href(params, { tests: params.tests ? undefined : "1" })}>
+            {params.tests ? "including" : "show"} {testCount} test chat{testCount === 1 ? "" : "s"}
+          </Chip>
+        )}
         {versions.length > 1 && (
           <>
             <span className="ml-3 text-xs text-slate-500">Assistant</span>
@@ -167,6 +174,7 @@ export default async function ConversationsPage({ searchParams }: { searchParams
                     {r.firstMessage ?? <span className="text-slate-400">(no message)</span>}
                   </Link>
                   {r.isDemo && <span className="ml-2 rounded bg-slate-100 px-1.5 text-xs text-slate-500">demo</span>}
+                  {r.isTest && <span className="ml-2 rounded bg-slate-100 px-1.5 text-xs text-slate-500">test</span>}
                 </td>
                 <td className="px-4 py-2.5">
                   {r.outcome ? (

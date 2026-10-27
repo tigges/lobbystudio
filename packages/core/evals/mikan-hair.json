@@ -76,16 +76,16 @@
             "handover"
           ],
           "contains": [
-            "what's your name"
+            "best phone number"
           ],
-          "step": "name",
+          "step": "phone",
           "judge": "Reviewed as missed next step: should have followed up with name and contact at least. It had replied: \"I'm afraid I can't answer that one, and I'd rather not guess. Shall I pass your question to the team? Or call us on 020 7946 0588.\""
         }
       },
       {
-        "say": "Mia Tanaka",
+        "say": "07700 900321",
         "expect": {
-          "step": "phone"
+          "step": "name"
         }
       }
     ]

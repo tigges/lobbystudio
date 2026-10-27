@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { clearTurnLabel, releaseToBot, setLearnedStatus, setConversationReviewed, setHandoverContact, setLabelsActioned, setTurnLabel, staffReply } from "@dental-bot/core";
+import { clearTurnLabel, releaseToBot, setLearnedStatus, setBookingStatus, setConversationReviewed, setConversationTest, setHandoverContact, setLabelsActioned, setTurnLabel, staffReply } from "@dental-bot/core";
 import { buildInfo } from "@/lib/build";
 import { currentTenant } from "@/lib/business";
 
@@ -60,6 +60,23 @@ export async function reviewedAction(form: FormData) {
   await setConversationReviewed({ tenantId: await currentTenant(), conversationId, reviewed: form.get("reviewed") === "1" });
   revalidatePath(`/console/conversations/${conversationId}`);
   revalidatePath("/console/conversations");
+}
+
+export async function bookingStatusAction(form: FormData) {
+  const id = Number(form.get("id"));
+  const status = String(form.get("status"));
+  if (!Number.isInteger(id) || !["new", "contacted"].includes(status)) return;
+  await setBookingStatus({ tenantId: await currentTenant(), id, status: status as "new" | "contacted" });
+  revalidatePath("/console/handovers");
+}
+
+export async function testChatAction(form: FormData) {
+  const conversationId = String(form.get("conversationId"));
+  await setConversationTest({ tenantId: await currentTenant(), conversationId, test: form.get("test") === "1" });
+  revalidatePath(`/console/conversations/${conversationId}`);
+  revalidatePath(`/console/handovers/${conversationId}`);
+  revalidatePath("/console/conversations");
+  revalidatePath("/console/handovers");
 }
 
 export async function actionedAction(form: FormData) {

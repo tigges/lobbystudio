@@ -67,6 +67,7 @@ export async function startSession(opts: {
   visitorId: string;
   conversationId?: string | null;
   isDemo?: boolean;
+  isTest?: boolean;
   /** The website page the chat is opened on, e.g. "prices". */
   page?: string | null;
   now?: Date;
@@ -90,6 +91,7 @@ export async function startSession(opts: {
       conv.status !== "closed" &&
       now.getTime() - conv.lastActivityAt.getTime() < RESUME_WITHIN_MS
     ) {
+      if (opts.isTest && !conv.isTest) await db.update(conversations).set({ isTest: true }).where(eq(conversations.id, conv.id));
       const bundle = await loadBundle(conv.versionId);
       return {
         conversationId: conv.id,
@@ -112,6 +114,7 @@ export async function startSession(opts: {
       visitorId: opts.visitorId,
       versionId,
       isDemo: opts.isDemo ?? false,
+      isTest: opts.isTest ?? false,
       page: opts.page ?? null,
       startedAt: now,
       lastActivityAt: now,
