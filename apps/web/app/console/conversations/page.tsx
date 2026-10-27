@@ -46,8 +46,8 @@ function Chip({ on, to, children }: { on: boolean; to: string; children: React.R
 export default async function ConversationsPage({ searchParams }: { searchParams: Promise<Params> }) {
   const params = await searchParams;
   const everything = await listConversations(await currentTenant(), 300);
-  const testCount = everything.filter((r) => r.isDemo).length;
-  const all = params.tests ? everything : everything.filter((r) => !r.isDemo);
+  const testCount = everything.filter((r) => r.isTest).length;
+  const all = params.tests ? everything : everything.filter((r) => !r.isTest);
   const versions = [...new Set(all.map((r) => r.versionNumber))].sort((a, b) => b - a);
 
   const had = HAD.find((h) => h.key === params.had);
@@ -173,7 +173,8 @@ export default async function ConversationsPage({ searchParams }: { searchParams
                   <Link href={`/console/conversations/${r.id}`} className="text-slate-900 hover:underline">
                     {r.firstMessage ?? <span className="text-slate-400">(no message)</span>}
                   </Link>
-                  {r.isDemo && <span className="ml-2 rounded bg-slate-100 px-1.5 text-xs text-slate-500">test</span>}
+                  {r.isDemo && <span className="ml-2 rounded bg-slate-100 px-1.5 text-xs text-slate-500">demo</span>}
+                  {r.isTest && <span className="ml-2 rounded bg-slate-100 px-1.5 text-xs text-slate-500">test</span>}
                 </td>
                 <td className="px-4 py-2.5">
                   {r.outcome ? (

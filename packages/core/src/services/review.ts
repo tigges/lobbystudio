@@ -36,7 +36,7 @@ export async function setTurnLabel(opts: { tenantId: string; turnId: number; lab
 export async function setConversationTest(opts: { tenantId: string; conversationId: string; test: boolean }) {
   await getDb()
     .update(conversations)
-    .set({ isDemo: opts.test })
+    .set({ isTest: opts.test })
     .where(and(eq(conversations.tenantId, opts.tenantId), eq(conversations.id, opts.conversationId)));
 }
 

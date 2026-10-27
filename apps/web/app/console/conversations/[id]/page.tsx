@@ -52,7 +52,7 @@ export default async function ConversationPage({
     openLabels: labelRows.filter((l) => l.label !== "good" && !l.actionedAt).length,
     actionedLabels: labelRows.filter((l) => l.actionedAt).length,
   });
-  const next = (await listConversations(tenant, 300)).find((r) => r.id !== c.id && !r.isDemo && reviewState(r) === "to_review");
+  const next = (await listConversations(tenant, 300)).find((r) => r.id !== c.id && !r.isTest && reviewState(r) === "to_review");
 
   return (
     <div className="space-y-6">
@@ -72,7 +72,7 @@ export default async function ConversationPage({
           v{versionNumber} · {label(c.status)} · topic {c.topic ?? "—"} · rating {c.rating ?? "—"} · {turns.length} turns · $
           {totalCost.toFixed(4)}
         </span>
-        <TestChatForm conversationId={c.id} isTest={c.isDemo} action={testChatAction} />
+        <TestChatForm conversationId={c.id} isTest={c.isTest} action={testChatAction} />
         {c.status === "handed_over" && (
           <Link href={`/console/handovers/${c.id}`} className="text-sm text-harbour-700 hover:underline">
             Reply →

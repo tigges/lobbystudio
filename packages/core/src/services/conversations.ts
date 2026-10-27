@@ -122,6 +122,7 @@ export async function listConversations(tenantId: string, limit = 100) {
       topic: conversations.topic,
       rating: conversations.rating,
       isDemo: conversations.isDemo,
+      isTest: conversations.isTest,
       versionNumber: versions.number,
       turns: sql<number>`(select count(*)::int from ${turns} t where t.conversation_id = "conversations"."id")`,
       costUsd: sql<number>`(select coalesce(sum(t.cost_usd), 0)::float from ${turns} t where t.conversation_id = "conversations"."id")`,
@@ -158,7 +159,7 @@ export async function listHandovers(tenantId: string) {
       firstMessage: sql<string | null>`(select m.text from ${messages} m where m.conversation_id = "handovers"."conversation_id" and m.role = 'visitor' order by m.id limit 1)`,
       lastMessage: sql<string | null>`(select m.text from ${messages} m where m.conversation_id = "handovers"."conversation_id" and m.role = 'visitor' order by m.id desc limit 1)`,
       conversationStatus: sql<string>`(select c.status from ${conversations} c where c.id = "handovers"."conversation_id")`,
-      isTest: sql<boolean>`coalesce((select c.is_demo from ${conversations} c where c.id = "handovers"."conversation_id"), false)`,
+      isTest: sql<boolean>`coalesce((select c.is_test from ${conversations} c where c.id = "handovers"."conversation_id"), false)`,
       lastRole: sql<string | null>`(select m.role from ${messages} m where m.conversation_id = "handovers"."conversation_id" and m.role <> 'system' order by m.id desc limit 1)`,
     })
     .from(handovers)
@@ -182,7 +183,7 @@ export async function listBookingRequests(tenantId: string) {
   const rows = await getDb()
     .select({
       ...getTableColumns(bookingRequests),
-      isTest: sql<boolean>`coalesce((select c.is_demo from ${conversations} c where c.id = "booking_requests"."conversation_id"), false)`,
+      isTest: sql<boolean>`coalesce((select c.is_test from ${conversations} c where c.id = "booking_requests"."conversation_id"), false)`,
     })
     .from(bookingRequests)
     .where(eq(bookingRequests.tenantId, tenantId))
@@ -201,12 +202,12 @@ export async function inboxCounts(tenantId: string): Promise<{ handovers: number
   const res = await getDb().execute(sql`
     select
       (select count(*)::int from ${handovers} h join ${conversations} c on c.id = h.conversation_id
-        where h.tenant_id = ${tenantId} and not c.is_demo and c.status <> 'closed'
+        where h.tenant_id = ${tenantId} and not c.is_test and c.status <> 'closed'
           and (h.status = 'open' or (h.status = 'replied' and c.status = 'handed_over' and (
             select m.role from ${messages} m where m.conversation_id = c.id and m.role <> 'system' order by m.id desc limit 1) = 'visitor'))
       ) as "handovers",
       (select count(*)::int from ${bookingRequests} b join ${conversations} c on c.id = b.conversation_id
-        where b.tenant_id = ${tenantId} and not c.is_demo and b.status = 'new' and b.channel = 'callback') as "bookings"`);
+        where b.tenant_id = ${tenantId} and not c.is_test and b.status = 'new' and b.channel = 'callback') as "bookings"`);
   return res.rows[0] as { handovers: number; bookings: number };
 }
 

@@ -45,7 +45,7 @@ export default async function HandoverPage({ params }: { params: Promise<{ id: s
           <span className="text-sm text-slate-500">
             {label(conversation.status)} · started {when(conversation.startedAt)}
           </span>
-          <TestChatForm conversationId={conversation.id} isTest={conversation.isDemo} action={testChatAction} />
+          <TestChatForm conversationId={conversation.id} isTest={conversation.isTest} action={testChatAction} />
         </div>
         <div className="rounded-2xl bg-slate-100/70 p-4">
           <Transcript messages={messages} />
